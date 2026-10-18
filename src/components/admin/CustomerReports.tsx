@@ -43,6 +43,8 @@ function ReportComposer({ restaurant, onClose, onToast }: { restaurant: Restaura
     if (!db) { onToast('اتصال قاعدة البيانات غير متاح'); return; }
     if (!phone) { onToast('أضف رقم واتساب أو الهاتف في بيانات المنشأة أولاً'); return; }
     if (!startDate || !endDate || startDate > endDate) { onToast('تحقق من تاريخ بداية ونهاية الفترة'); return; }
+    const whatsappWindow = window.open('', '_blank');
+    if (!whatsappWindow) { onToast('اسمح بفتح النوافذ المنبثقة لإكمال الإرسال'); return; }
     setBusy(true);
     try {
       const ref = await addDoc(collection(db, 'publicReports'), {
@@ -59,9 +61,9 @@ function ReportComposer({ restaurant, onClose, onToast }: { restaurant: Restaura
       const message = customMessage.replaceAll('{name}', restaurant.name).replaceAll('{restaurant}', restaurant.name).replaceAll('{start}', startDate).replaceAll('{end}', endDate).replaceAll('{url}', reportUrl);
       const digits = phone.replace(/\D/g, '');
       if (!digits) throw new Error('رقم الهاتف غير صالح');
-      window.open(`https://wa.me/${digits}?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
+      whatsappWindow.location.href = `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
       onToast('تم إنشاء رابط التقرير وفتح واتساب لمراجعته وإرساله'); onClose();
-    } catch (error) { console.error(error); onToast('تعذر إنشاء التقرير. تحقق من قواعد Firestore المنشورة.'); }
+    } catch (error) { whatsappWindow.close(); console.error(error); onToast('تعذر إنشاء التقرير. تحقق من قواعد Firestore المنشورة.'); }
     finally { setBusy(false); }
   };
   return <div className="fixed inset-0 z-[120] grid place-items-center bg-black/75 p-3 sm:p-6" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}><div className="max-h-[92vh] w-full max-w-xl overflow-auto rounded-3xl border border-white/10 bg-[#1c1c1e] p-5 shadow-2xl sm:p-7">
