@@ -12,6 +12,7 @@ export type ReportAnalytics = {
   shareVisits: number;
   totalVisits: number;
   daily: DailyReportStat[];
+  hourly: { hour: number; visits: number }[];
 };
 
 function hash(text: string): number {
@@ -27,7 +28,8 @@ function hash(text: string): number {
 export function buildReportAnalytics(restaurantId: string, startDate: string, endDate: string): ReportAnalytics {
   const total = { qrScans: 0, linkVisits: 0, shareVisits: 0, totalVisits: 0 };
   const daily: DailyReportStat[] = [];
-  if (!startDate || !endDate || startDate > endDate) return { ...total, daily };
+  const hourly = Array.from({ length: 24 }, (_, hour) => ({ hour, visits: 0 }));
+  if (!startDate || !endDate || startDate > endDate) return { ...total, daily, hourly };
 
   const current = new Date(`${startDate}T12:00:00`);
   const finish = new Date(`${endDate}T12:00:00`);
@@ -38,11 +40,20 @@ export function buildReportAnalytics(restaurantId: string, startDate: string, en
     const shareVisits = 3 + (hash(`${restaurantId}:${date}:share`) % 19);
     const row = { date, qrScans, linkVisits, shareVisits, totalVisits: qrScans + linkVisits + shareVisits };
     daily.push(row);
+    const weights = hourly.map(({ hour }) => 1 + (hour >= 11 && hour <= 14 ? 5 : 0) + (hour >= 18 && hour <= 22 ? 7 : 0) + (hash(`${restaurantId}:${date}:${hour}:peak`) % 5));
+    const weightSum = weights.reduce((sum, weight) => sum + weight, 0);
+    let distributed = 0;
+    weights.forEach((weight, hour) => {
+      const visits = Math.floor((row.totalVisits * weight) / weightSum);
+      hourly[hour].visits += visits;
+      distributed += visits;
+    });
+    for (let remainder = row.totalVisits - distributed, hour = 0; remainder > 0; remainder -= 1, hour = (hour + 1) % 24) hourly[hour].visits += 1;
     total.qrScans += qrScans;
     total.linkVisits += linkVisits;
     total.shareVisits += shareVisits;
     total.totalVisits += row.totalVisits;
     current.setDate(current.getDate() + 1);
   }
-  return { ...total, daily };
+  return { ...total, daily, hourly };
 }
