@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { addDoc, collection, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { ArrowUpRight, CalendarDays, FileBarChart2, MessageCircle, Search, X } from 'lucide-react';
 import { db } from '../../lib/firebase';
 import { RestaurantData } from '../../types/restaurant';
@@ -54,7 +54,8 @@ function ReportComposer({ restaurant, onClose, onToast }: { restaurant: Restaura
         metrics: { views: null, qrScans: null, orders: null, revenue: null },
         menu: includeMenu ? { categories: (restaurant.categories || []).map(c => ({ name: c.labelAr || c.name || c.id, itemCount: restaurant.products.filter(p => p.categoryId === c.id).length })), productCount: restaurant.products.length, activeProductCount: restaurant.products.filter(p => !p.isSoldOut).length } : null,
         status: includeStatus ? { active: restaurant.isActive !== false, generatedAt: new Date().toISOString() } : null,
-        createdAt: serverTimestamp()
+        createdAt: serverTimestamp(),
+        expiresAt: Timestamp.fromDate(new Date(Date.now() + 90 * 24 * 60 * 60 * 1000))
       });
       const url = new URL(window.location.href); url.search = ''; url.searchParams.set('report', ref.id);
       const reportUrl = url.toString();
