@@ -238,7 +238,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           analytics: defaultAnalytics,
           categories,
           products,
-          contact: d.contact || {}
+          contact: d.contact || {},
+          client: d.client || {},
+          businessInfo: d.businessInfo || ''
         });
       });
 
