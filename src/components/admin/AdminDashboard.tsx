@@ -7,7 +7,6 @@ import { VenuesManagement } from './VenuesManagement';
 import { PlatformSettings } from './PlatformSettings';
 import { QRCodeModal } from './QRCodeModal';
 import { AnalyticsTab, DateFilterType } from './AnalyticsTab';
-import { seedBackFriesToFirestore } from '../../lib/seedData';
 
 export interface DailyStatRecord {
   date: string;
@@ -86,7 +85,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [restaurants, setRestaurants] = useState<RestaurantData[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [isSeeding, setIsSeeding] = useState<boolean>(false);
 
   // Modals / Visual Editor state
   const [selectedForVisualEdit, setSelectedForVisualEdit] = useState<RestaurantData | null>(null);
@@ -273,21 +271,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     } catch (err) {
       console.error('Error updating status:', err);
       showToast('حدث خطأ أثناء تحديث الحالة');
-    }
-  };
-
-  // 4. Seed Back Fries demo data
-  const handleSeedBackFries = async () => {
-    setIsSeeding(true);
-    try {
-      await seedBackFriesToFirestore();
-      await fetchAllRestaurants();
-      showToast('تم زرع وثيقة BACK FRIES بنجاح!');
-    } catch (err: any) {
-      console.error('Error seeding data:', err);
-      showToast('تعذر زرع البيانات');
-    } finally {
-      setIsSeeding(false);
     }
   };
 
@@ -698,7 +681,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   }, [restaurants]);
 
   const syncPercentage = useMemo(() => {
-    if (restaurants.length === 0) return 100;
+    if (restaurants.length === 0) return 0;
     return Math.round((activeCount / restaurants.length) * 100);
   }, [restaurants, activeCount]);
 
@@ -1269,7 +1252,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   return (
     <div
       dir="rtl"
-      className="flex min-h-screen w-full bg-[#000000] text-zinc-100 font-sans antialiased selection:bg-[#F7E354] selection:text-black"
+      className="admin-dashboard-font flex min-h-screen w-full flex-col bg-[#202124] text-zinc-100 antialiased selection:bg-[#F7E354] selection:text-black lg:flex-row"
     >
       {/* Toast Notification */}
       {toastMessage && (
@@ -1280,7 +1263,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       )}
 
       {/* 1. FIXED OPERATIONAL SIDEBAR (RTL RIGHT) */}
-      <aside className="w-80 border-l border-white/5 bg-[#121214] flex flex-col justify-between p-6 z-20 shrink-0">
+      <aside className="hidden w-60 shrink-0 border-l border-white/[0.07] bg-[#1c1d20] p-5 lg:flex lg:flex-col lg:justify-between lg:sticky lg:top-0 lg:h-screen lg:z-20">
         <div className="space-y-8">
           {/* Platform Brand */}
           <div className="flex items-center gap-3 px-2">
@@ -1351,7 +1334,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             >
               <div className="flex items-center gap-3">
                 <span className="material-symbols-outlined text-[20px]">view_quilt</span>
-                <span>الأقسام والأعمدة</span>
+                <span>إدارة المطاعم</span>
               </div>
               <span className="material-symbols-outlined text-[16px]">chevron_left</span>
             </button>
@@ -1386,20 +1369,37 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <span className="material-symbols-outlined text-[#F7E354]">open_in_new</span>
           </button>
 
-          <div className="flex items-center justify-between px-2">
-            <span className="text-xs font-bold text-zinc-500">الوضع الداكن</span>
-            <div className="flex items-center bg-[#1C1C1E] p-1 rounded-full border border-white/5 cursor-pointer">
-              <span className="w-5 h-5 rounded-full bg-[#F7E354] flex items-center justify-center"></span>
-              <span className="w-7 h-5"></span>
-            </div>
-          </div>
+          <p className="px-2 text-[11px] leading-6 text-zinc-600">منصة موحدة لإدارة المنيوهات الرقمية</p>
         </div>
       </aside>
+
+      {/* Compact navigation for smaller screens */}
+      <nav className="flex items-center gap-1 overflow-x-auto border-b border-white/[0.07] bg-[#1c1d20] px-3 py-2 lg:hidden">
+        {([
+          ['overview', 'dashboard', 'الرئيسية'],
+          ['analytics', 'trending_up', 'الإحصاءات'],
+          ['venues', 'storefront', 'المطاعم'],
+          ['settings', 'tune', 'الإعدادات']
+        ] as const).map(([tab, icon, label]) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold transition-colors ${activeTab === tab ? 'bg-[#F7E354] text-[#171717]' : 'text-zinc-400 hover:bg-white/5 hover:text-white'}`}
+          >
+            <span className="material-symbols-outlined text-[17px]">{icon}</span>
+            {label}
+          </button>
+        ))}
+        <button onClick={() => onBackToMenu()} className="mr-auto flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold text-zinc-400 hover:bg-white/5 hover:text-white">
+          <span className="material-symbols-outlined text-[17px]">visibility</span>
+          معاينة
+        </button>
+      </nav>
 
       {/* 2. MAIN CONTENT AREA */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Header */}
-        <header className="h-24 px-10 flex items-center justify-between border-b border-white/5">
+        <header className="flex min-h-24 flex-col items-stretch justify-between gap-4 border-b border-white/[0.07] px-4 py-5 sm:px-6 lg:flex-row lg:items-center lg:px-10">
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-[#F7E354] yellow-glow"></span>
@@ -1413,9 +1413,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </h1>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             {/* Advanced Date Range Filter Dropdown & Pickers (Shown only on overview and analytics tabs) */}
-            {(activeTab === 'overview' || activeTab === 'analytics') && (
+            {activeTab === 'analytics' && (
               <div className="flex items-center gap-2">
                 <div className="relative">
                   <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-[#F7E354] text-[18px] pointer-events-none">
@@ -1478,46 +1478,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               />
             </div>
 
-            {/* Notification / Seed quick button */}
-            <button
-              onClick={handleSeedBackFries}
-              disabled={isSeeding}
-              className="w-11 h-11 rounded-xl glass-metallic flex items-center justify-center text-zinc-300 hover:text-[#F7E354] transition-colors relative cursor-pointer"
-              title={isSeeding ? 'جاري زرع البيانات...' : 'زرع وثيقة BACK FRIES للتجربة'}
-            >
-              <span className="material-symbols-outlined">
-                {isSeeding ? 'sync' : 'cloud_upload'}
-              </span>
-              <span className="absolute top-3 right-3 w-2 h-2 rounded-full bg-[#F7E354] yellow-glow"></span>
-            </button>
-
             {/* Add New Menu Button (Opens Custom Theme Modal) */}
             <button
               onClick={() => handleOpenAddMenuModal('restaurant')}
               className="py-2.5 px-5 rounded-xl bg-[#F7E354] text-black text-sm font-bold flex items-center gap-2 shadow-[0_0_20px_rgba(247,227,84,0.3)] hover:scale-95 transition-transform cursor-pointer"
             >
               <span className="material-symbols-outlined text-[18px] font-bold">add</span>
-              <span>إضافة منيو جديد</span>
+              <span>إضافة مطعم</span>
             </button>
           </div>
         </header>
 
         {/* Dynamic Content */}
-        <main className="px-10 pb-12 pt-8 w-full space-y-8 flex-1">
+        <main className="w-full flex-1 space-y-8 px-4 pb-10 pt-6 sm:px-6 lg:px-10 lg:pt-8">
           {/* ================= TAB 1: OVERVIEW ================= */}
           {activeTab === 'overview' && (
             <div className="space-y-8 animate-in fade-in duration-300">
               {/* Row 1: The Three Bento Cards */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 xl:gap-5">
                 
                 {/* Card 1: Yellow (Total Menus & QR Scans in Period) */}
-                <div className="p-7 rounded-[32px] bg-[#F7E354] text-black flex flex-col justify-between min-h-[320px] shadow-2xl relative overflow-hidden transition-transform hover:scale-[1.02]">
+                <div className="relative flex min-h-[250px] flex-col justify-between overflow-hidden rounded-[26px] bg-[#F7E354] p-6 text-black shadow-[0_18px_48px_rgba(0,0,0,0.18)] transition-transform hover:-translate-y-1 sm:p-7 xl:min-h-[280px]">
                   <div className="flex items-center justify-between">
                     <div className="flex flex-col">
-                      <span className="text-[11px] font-bold opacity-70">إحصائية المسح والتزامن</span>
-                      <span className="text-lg font-black mt-0.5">مسحات الـ QR النشطة</span>
+                      <span className="text-[11px] font-bold opacity-70">حالة المطاعم على المنصة</span>
+                      <span className="text-lg font-black mt-0.5">المطاعم النشطة</span>
                     </div>
-                    <span className="material-symbols-outlined text-[28px] opacity-80">qr_code_scanner</span>
+                    <span className="material-symbols-outlined text-[28px] opacity-80">storefront</span>
                   </div>
 
                   <div className="my-6 flex items-center justify-between">
@@ -1530,24 +1517,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           stroke="currentColor"
                           strokeWidth="3"
                         ></path>
-                        <path
-                          className="text-black"
-                          d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeDasharray={`${Math.min(100, Math.max(10, syncPercentage))}, 100`}
-                          strokeLinecap="round"
-                          strokeWidth="3.5"
-                        ></path>
+                        {syncPercentage > 0 && (
+                          <path
+                            className="text-black"
+                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeDasharray={`${Math.min(100, syncPercentage)}, 100`}
+                            strokeLinecap="round"
+                            strokeWidth="3.5"
+                          />
+                        )}
                       </svg>
                       <span className="absolute text-xl font-black">{syncPercentage}%</span>
                     </div>
                     <div className="flex flex-col items-end">
                       <span className="text-5xl lg:text-6xl font-black tracking-tighter">
-                        {filteredStats.totalScans.toLocaleString('ar-SA')}
+                        {activeCount.toLocaleString('ar-SA')}
                       </span>
                       <span className="text-[11px] font-bold opacity-80 mt-1">
-                        مسحة في ({filteredStats.filterLabel})
+                        من أصل {restaurants.length} مطاعم
                       </span>
                     </div>
                   </div>
@@ -1555,14 +1544,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <div className="flex items-center justify-between pt-4 border-t border-black/10 text-xs font-bold">
                     <span className="flex items-center gap-1">
                       <span className="material-symbols-outlined text-[16px]">north</span>
-                      +{filteredStats.totalViews.toLocaleString('ar-SA')} زيارة في الفترة المحددة
+                      {activeCount.toLocaleString('ar-SA')} مطاعم جاهزة للعرض
                     </span>
-                    <span className="opacity-70">{restaurants.length} منشآت نشطة</span>
+                    <span className="opacity-70">{restaurants.length} إجمالي المنشآت</span>
                   </div>
                 </div>
 
                 {/* Card 2: Glass Metallic Dark (Visual Editor / المحرر المرئي) */}
-                <div className="p-7 rounded-[32px] glass-metallic text-white flex flex-col justify-between min-h-[320px] relative overflow-hidden shadow-2xl transition-transform hover:scale-[1.02]">
+                <div className="glass-metallic relative flex min-h-[250px] flex-col justify-between overflow-hidden rounded-[26px] p-6 text-white shadow-[0_18px_48px_rgba(0,0,0,0.2)] transition-transform hover:-translate-y-1 sm:p-7 xl:min-h-[280px]">
                   <div className="flex items-center justify-between relative z-10">
                     <span className="px-3 py-1 rounded-full border border-[#F7E354]/30 text-[10px] font-bold text-[#F7E354] bg-[#F7E354]/10 flex items-center gap-1.5">
                       <span className="w-1.5 h-1.5 bg-[#F7E354] rounded-full animate-pulse"></span>
@@ -1582,16 +1571,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       <div className="bg-[#1C1C1E] border border-white/5 rounded-lg p-2 flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <span className="material-symbols-outlined text-zinc-500 text-[16px]">drag_indicator</span>
-                          <span className="text-[11px] font-bold text-zinc-300">قسم المشروبات الفاخرة</span>
+                          <span className="text-[11px] font-bold text-zinc-300">{restaurants[0]?.categories?.[0]?.labelAr || 'أضف أول قسم إلى منيوك'}</span>
                         </div>
                         <span className="w-2 h-2 rounded-full bg-[#F7E354]"></span>
                       </div>
                       <div className="bg-[#2C2C2E] border border-[#F7E354]/20 rounded-lg p-2 flex items-center justify-between shadow-lg">
                         <div className="flex items-center gap-2">
                           <span className="material-symbols-outlined text-[#F7E354] text-[16px]">drag_indicator</span>
-                          <span className="text-[11px] font-bold text-[#F7E354]">برجر كلاسيك مدخن</span>
+                          <span className="text-[11px] font-bold text-[#F7E354]">{restaurants[0]?.products?.[0]?.nameAr || 'أضف أول صنف إلى المنيو'}</span>
                         </div>
-                        <span className="text-[11px] font-bold text-white">48 ر.س</span>
+                        <span className="text-[11px] font-bold text-white">{restaurants[0]?.products?.[0] ? `${restaurants[0].products[0].price} ${restaurants[0].currency || 'ر.س'}` : '—'}</span>
                       </div>
                     </div>
                   </div>
@@ -1612,229 +1601,47 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
 
                 {/* Card 3: Light Gray (Total Items & Traffic Analytics) */}
-                <div className="p-7 rounded-[32px] bg-[#E5E5EA] text-[#1C1C1E] flex flex-col justify-between min-h-[320px] shadow-2xl relative overflow-hidden transition-transform hover:scale-[1.02]">
+                <div className="relative flex min-h-[250px] flex-col justify-between overflow-hidden rounded-[26px] bg-[#efeff0] p-6 text-[#1C1C1E] shadow-[0_18px_48px_rgba(0,0,0,0.14)] transition-transform hover:-translate-y-1 sm:p-7 xl:min-h-[280px]">
                   <div className="flex items-center justify-between">
                     <div className="flex flex-col">
-                      <span className="text-[11px] font-bold opacity-60">تفاعل الزوار والمخزون</span>
-                      <span className="text-lg font-black mt-0.5">زيارات وتصفح القوائم</span>
+                      <span className="text-[11px] font-bold opacity-60">حجم المحتوى الحالي</span>
+                      <span className="text-lg font-black mt-0.5">الأصناف في المنيوهات</span>
                     </div>
-                    <span className="material-symbols-outlined text-[28px] opacity-40">visibility</span>
+                    <span className="material-symbols-outlined text-[28px] opacity-40">restaurant_menu</span>
                   </div>
 
                   <div className="my-6 text-center">
                     <div className="flex items-baseline justify-center gap-2">
                       <span className="text-6xl lg:text-7xl font-black tracking-tighter text-[#1C1C1E]">
-                        {filteredStats.totalViews.toLocaleString('ar-SA')}
+                        {totalItemsCount.toLocaleString('ar-SA')}
                       </span>
                     </div>
                     <span className="text-xs font-bold opacity-70">
-                      مشاهدة للقوائم ({filteredStats.filterLabel})
+                      صنف مسجل في جميع المطاعم
                     </span>
 
-                    <div className="flex flex-col gap-2 mt-4">
-                      <div className="px-4 py-2 rounded-full bg-[#1C1C1E] text-white text-[11px] font-bold flex items-center justify-between">
-                        <span className="flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-[#F7E354]"></span> معدل تحويل المسحات:
-                        </span>
-                        <span>{filteredStats.conversionRate}%</span>
+                    <div className="mt-5 grid grid-cols-3 gap-2 text-[11px] font-bold">
+                      <div className="rounded-xl bg-zinc-300/80 px-3 py-3 text-center">
+                        <span className="block text-lg">{mainMealsCount}</span>
+                        <span className="opacity-70">وجبات</span>
                       </div>
-                      <div className="flex gap-2">
-                        <div className="flex-1 px-3 py-2 rounded-full bg-zinc-300 text-[#1C1C1E] text-[11px] font-bold flex justify-between">
-                          <span>الأصناف:</span>
-                          <span>{totalItemsCount}</span>
-                        </div>
-                        <div className="flex-1 px-3 py-2 rounded-full bg-zinc-300 text-[#1C1C1E] text-[11px] font-bold flex justify-between">
-                          <span>متوسط المسح:</span>
-                          <span>{filteredStats.avgScans}</span>
-                        </div>
+                      <div className="rounded-xl bg-zinc-300/80 px-3 py-3 text-center">
+                        <span className="block text-lg">{drinksCount}</span>
+                        <span className="opacity-70">مشروبات</span>
+                      </div>
+                      <div className="rounded-xl bg-zinc-300/80 px-3 py-3 text-center">
+                        <span className="block text-lg">{sweetsCount}</span>
+                        <span className="opacity-70">حلويات</span>
                       </div>
                     </div>
                   </div>
 
                   <div className="flex items-center justify-between pt-4 border-t border-black/10 text-[10px] font-bold">
                     <span className="flex items-center gap-1">
-                      <span className="material-symbols-outlined text-[14px]">update</span>
-                      بيانات متزامنة مع نطاق: {filteredStats.filterLabel}
+                      <span className="material-symbols-outlined text-[14px]">restaurant_menu</span>
+                      محتوى المنيوهات المسجلة
                     </span>
-                    <span className="opacity-60">مباشر ⚡</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* ================= TRAFFIC SOURCE ANALYTICS SECTION ================= */}
-              <div className="glass-metallic rounded-[32px] p-8 border border-white/5 space-y-6 shadow-2xl relative overflow-hidden">
-                {/* Background ambient glow */}
-                <div className="absolute top-0 right-0 w-96 h-96 bg-[#F7E354]/5 rounded-full blur-3xl pointer-events-none" />
-
-                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 relative z-10">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-2xl bg-[#F7E354] text-black flex items-center justify-center shadow-[0_0_20px_rgba(247,227,84,0.3)] flex-shrink-0">
-                      <span className="material-symbols-outlined text-2xl font-bold">hub</span>
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-[#F7E354] yellow-glow animate-pulse"></span>
-                        <h2 className="text-xl font-black text-white">تحليل مصادر الزيارات (Traffic Source Analytics)</h2>
-                      </div>
-                      <p className="text-xs text-zinc-400 mt-0.5">
-                        رصد دقيق لقنوات قدوم الزوار وتفاعلهم مع القوائم الرقمية عبر جميع الفروع ({filteredStats.filterLabel})
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <span className="px-3.5 py-1.5 rounded-full bg-[#1C1C1E] text-zinc-300 text-xs font-bold border border-white/10 flex items-center gap-2">
-                      <span className="material-symbols-outlined text-[#F7E354] text-[16px]">visibility</span>
-                      <span>إجمالي الزيارات: {filteredStats.totalViews.toLocaleString('ar-SA')}</span>
-                    </span>
-                  </div>
-                </div>
-
-                {/* Visual Distribution Progress Bar */}
-                <div className="space-y-2 relative z-10">
-                  <div className="flex items-center justify-between text-xs font-bold">
-                    <span className="text-zinc-400">التوزيع النسبي للقنوات الميدانية والرقمية:</span>
-                    <span className="text-[#F7E354] font-mono">100% حركة الزوار</span>
-                  </div>
-                  <div className="w-full h-4 rounded-full bg-[#1C1C1E] p-0.5 overflow-hidden flex gap-1 border border-white/5 shadow-inner">
-                    <div
-                      style={{ width: `${filteredStats.qrPercent}%` }}
-                      className="h-full rounded-full bg-[#F7E354] shadow-[0_0_12px_rgba(247,227,84,0.4)] transition-all duration-500"
-                      title={`مسح الـ QR: ${filteredStats.qrPercent}%`}
-                    />
-                    <div
-                      style={{ width: `${filteredStats.socialPercent}%` }}
-                      className="h-full rounded-full bg-zinc-200 transition-all duration-500"
-                      title={`شبكات التواصل: ${filteredStats.socialPercent}%`}
-                    />
-                    <div
-                      style={{ width: `${filteredStats.directPercent}%` }}
-                      className="h-full rounded-full bg-zinc-600 transition-all duration-500"
-                      title={`زيارات مباشرة: ${filteredStats.directPercent}%`}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between text-[11px] text-zinc-400 px-1 pt-1">
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-[#F7E354]"></span>
-                      <span className="font-bold text-white">مسحات الـ QR ({filteredStats.qrPercent}%)</span>
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-zinc-200"></span>
-                      <span className="font-bold text-white">شبكات التواصل الاجتماعي ({filteredStats.socialPercent}%)</span>
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-zinc-600"></span>
-                      <span className="font-bold text-white">الزيارات المباشرة ({filteredStats.directPercent}%)</span>
-                    </span>
-                  </div>
-                </div>
-
-                {/* 3 Channel Deep Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-5 pt-2 relative z-10">
-                  {/* Channel 1: QR Scans */}
-                  <div className="p-6 rounded-2xl bg-[#1C1C1E] border border-[#F7E354]/30 hover:border-[#F7E354] transition-all flex flex-col justify-between group shadow-lg">
-                    <div className="flex items-center justify-between">
-                      <div className="w-10 h-10 rounded-xl bg-[#F7E354]/10 border border-[#F7E354]/20 flex items-center justify-center text-[#F7E354]">
-                        <span className="material-symbols-outlined text-2xl">qr_code_scanner</span>
-                      </div>
-                      <span className="text-xs font-black px-2.5 py-1 rounded-full bg-[#F7E354] text-black">
-                        {filteredStats.qrPercent}%
-                      </span>
-                    </div>
-
-                    <div className="my-4">
-                      <h4 className="text-base font-bold text-white flex items-center gap-2">
-                        <span>مسح رمز الـ QR</span>
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#F7E354]"></span>
-                      </h4>
-                      <p className="text-[11px] text-zinc-400 mt-1 leading-relaxed">
-                        طاولات الصالة، بوابات الدخول، والملصقات المطبوعة داخل المنشآت
-                      </p>
-                      <div className="mt-4 flex items-baseline gap-2">
-                        <span className="text-3xl font-black text-[#F7E354] tracking-tight">
-                          {filteredStats.totalQr.toLocaleString('ar-SA')}
-                        </span>
-                        <span className="text-xs text-zinc-400">زيارة فعلية</span>
-                      </div>
-                    </div>
-
-                    <div className="pt-3 border-t border-white/5 flex items-center justify-between text-[10px] text-zinc-400 font-bold">
-                      <span className="text-[#F7E354] flex items-center gap-1">
-                        <span className="material-symbols-outlined text-[13px]">verified</span>
-                        أعلى معدل تحويل للطلبات
-                      </span>
-                      <span>فوري داخل الفرع</span>
-                    </div>
-                  </div>
-
-                  {/* Channel 2: Social Media */}
-                  <div className="p-6 rounded-2xl bg-[#1C1C1E] border border-white/10 hover:border-white/20 transition-all flex flex-col justify-between group shadow-lg">
-                    <div className="flex items-center justify-between">
-                      <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/10 flex items-center justify-center text-zinc-200">
-                        <span className="material-symbols-outlined text-2xl">share</span>
-                      </div>
-                      <span className="text-xs font-black px-2.5 py-1 rounded-full bg-zinc-200 text-black">
-                        {filteredStats.socialPercent}%
-                      </span>
-                    </div>
-
-                    <div className="my-4">
-                      <h4 className="text-base font-bold text-white flex items-center gap-2">
-                        <span>شبكات التواصل الاجتماعي</span>
-                      </h4>
-                      <p className="text-[11px] text-zinc-400 mt-1 leading-relaxed">
-                        رابط البايو في إنستغرام، تيك توك، تويتر/X، وحملات سناب شات
-                      </p>
-                      <div className="mt-4 flex items-baseline gap-2">
-                        <span className="text-3xl font-black text-white tracking-tight">
-                          {filteredStats.totalSocial.toLocaleString('ar-SA')}
-                        </span>
-                        <span className="text-xs text-zinc-400">زيارة رقمية</span>
-                      </div>
-                    </div>
-
-                    <div className="pt-3 border-t border-white/5 flex items-center justify-between text-[10px] text-zinc-400 font-bold">
-                      <span className="text-zinc-200 flex items-center gap-1">
-                        <span className="material-symbols-outlined text-[13px]">trending_up</span>
-                        المحرك الأساسي لعملاء جدد
-                      </span>
-                      <span>عبر الهاتف 📱</span>
-                    </div>
-                  </div>
-
-                  {/* Channel 3: Direct & Shared */}
-                  <div className="p-6 rounded-2xl bg-[#1C1C1E] border border-white/10 hover:border-white/20 transition-all flex flex-col justify-between group shadow-lg">
-                    <div className="flex items-center justify-between">
-                      <div className="w-10 h-10 rounded-xl bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-400">
-                        <span className="material-symbols-outlined text-2xl">link</span>
-                      </div>
-                      <span className="text-xs font-black px-2.5 py-1 rounded-full bg-zinc-700 text-zinc-200">
-                        {filteredStats.directPercent}%
-                      </span>
-                    </div>
-
-                    <div className="my-4">
-                      <h4 className="text-base font-bold text-white flex items-center gap-2">
-                        <span>الزيارات المباشرة والمشاركة</span>
-                      </h4>
-                      <p className="text-[11px] text-zinc-400 mt-1 leading-relaxed">
-                        المفضلة، كتابة الرابط المباشر، ومشاركة الرابط عبر واتساب
-                      </p>
-                      <div className="mt-4 flex items-baseline gap-2">
-                        <span className="text-3xl font-black text-zinc-200 tracking-tight">
-                          {filteredStats.totalDirect.toLocaleString('ar-SA')}
-                        </span>
-                        <span className="text-xs text-zinc-400">زيارة مباشرة</span>
-                      </div>
-                    </div>
-
-                    <div className="pt-3 border-t border-white/5 flex items-center justify-between text-[10px] text-zinc-400 font-bold">
-                      <span className="text-zinc-400 flex items-center gap-1">
-                        <span className="material-symbols-outlined text-[13px]">repeat</span>
-                        ولاء وتكرار طلب دائم
-                      </span>
-                      <span>روابط محفوظة</span>
-                    </div>
+                    <span className="opacity-60">{restaurants.length} مطاعم</span>
                   </div>
                 </div>
               </div>
@@ -1852,7 +1659,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     onClick={() => setActiveTab('venues')}
                     className="text-sm font-bold text-zinc-400 hover:text-[#F7E354] flex items-center gap-1 transition-colors cursor-pointer"
                   >
-                    <span>عرض الكل في الأقسام والأعمدة</span>
+                    <span>عرض جميع المطاعم</span>
                     <span className="material-symbols-outlined text-[18px]">arrow_back</span>
                   </button>
                 </div>
@@ -1867,15 +1674,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       className="px-5 py-2.5 rounded-xl bg-[#F7E354] text-black font-bold text-xs shadow-lg inline-flex items-center gap-2 cursor-pointer"
                     >
                       <span className="material-symbols-outlined text-[18px]">add</span>
-                      <span>إضافة أول منيو الآن</span>
+                      <span>إضافة مطعم جديد</span>
                     </button>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {filteredOverviewVenues.map((v) => {
                       const isCafe = v.type === 'cafe';
-                      const vStats = filteredStats.venuePeriodStats[v.id];
-                      const venueScans = vStats?.scans ?? v.scansCount ?? 850;
                       return (
                         <div
                           key={v.slug}
@@ -1956,39 +1761,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             </div>
                           </div>
 
-                          {/* Live Interaction info bound to date range */}
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] text-zinc-400 flex items-center gap-1">
-                              <span className="material-symbols-outlined text-[14px]">qr_code_scanner</span>
-                              مسحات الـ QR ({filteredStats.filterLabel})
-                            </span>
-                            <span className="font-bold text-xs text-[#F7E354]">
-                              {venueScans.toLocaleString('ar-SA')} مسحة
-                            </span>
-                          </div>
-
-                          {/* Traffic Source Breakdown per Venue */}
-                          <div className="space-y-1.5 pt-1">
-                            <div className="flex items-center justify-between text-[10px] text-zinc-400">
-                              <span className="font-bold flex items-center gap-1">
-                                <span className="material-symbols-outlined text-[13px] text-[#F7E354]">hub</span>
-                                مصادر الزيارات
-                              </span>
-                              <div className="flex items-center gap-1.5 font-mono text-[10px]">
-                                <span className="text-[#F7E354]">QR {vStats?.qrPercent ?? 63}%</span>
-                                <span className="text-zinc-600">•</span>
-                                <span className="text-zinc-200">سوشيال {vStats?.socialPercent ?? 24}%</span>
-                                <span className="text-zinc-600">•</span>
-                                <span className="text-zinc-400">مباشر {vStats?.directPercent ?? 13}%</span>
-                              </div>
-                            </div>
-                            <div className="w-full h-1.5 rounded-full bg-[#1C1C1E] overflow-hidden flex">
-                              <div style={{ width: `${vStats?.qrPercent ?? 63}%` }} className="h-full bg-[#F7E354]" title="QR Code" />
-                              <div style={{ width: `${vStats?.socialPercent ?? 24}%` }} className="h-full bg-zinc-200" title="Social Media" />
-                              <div style={{ width: `${vStats?.directPercent ?? 13}%` }} className="h-full bg-zinc-600" title="Direct" />
-                            </div>
-                          </div>
-
                           {/* Action Buttons */}
                           <div className="grid grid-cols-4 gap-2 pt-2">
                             <button
@@ -2022,14 +1794,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 )}
               </div>
 
-              {/* Venue Performance Comparison Section */}
-              {renderVenueComparisonSection()}
             </div>
           )}
 
           {/* ================= TAB: VISITOR ANALYTICS ================= */}
           {activeTab === 'analytics' && (
             <div className="space-y-8 animate-in fade-in duration-300">
+              <div className="flex items-start gap-3 rounded-2xl border border-amber-300/20 bg-amber-300/[0.06] px-4 py-3 text-sm leading-6 text-amber-100/80">
+                <span className="material-symbols-outlined mt-0.5 text-[18px] text-amber-200">info</span>
+                <p>هذه الإحصاءات تجريبية حاليًا وليست قياسات فعلية للزوار. سنربطها بتتبع حقيقي قبل الاعتماد عليها.</p>
+              </div>
               <AnalyticsTab
                 restaurants={restaurants}
                 dateFilter={dateFilter}
@@ -2045,8 +1819,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 }}
               />
 
-              {/* Venue Performance Comparison Section */}
-              {renderVenueComparisonSection()}
             </div>
           )}
 
@@ -2083,11 +1855,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </main>
 
         {/* Small Bottom Status Footer */}
-        <footer className="px-10 pb-6 mt-auto">
+        <footer className="mt-auto px-4 pb-5 sm:px-6 lg:px-10">
           <div className="glass-metallic p-4 rounded-2xl flex items-center justify-between text-zinc-400">
             <div className="flex items-center gap-2 font-bold text-[10px]">
               <span className="w-2 h-2 rounded-full bg-[#F7E354] yellow-glow animate-pulse"></span>
-              <span>جميع المزامنات الحية تعمل بكفاءة 99.9% مع خوادم التخزين السحابي Firebase</span>
+              <span>إدارة مركزية للمطاعم والقوائم الرقمية</span>
             </div>
             <div className="flex items-center gap-4 font-bold text-[10px] opacity-60">
               <span>الفترة النشطة: {filteredStats.filterLabel}</span>
