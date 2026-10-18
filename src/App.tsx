@@ -13,6 +13,7 @@ import { Category, MenuItem } from './types/restaurant';
 import { ShieldCheck, AlertCircle } from 'lucide-react';
 import { auth } from './lib/firebase';
 import { AdminLogin } from './components/AdminLogin';
+import { PublicReport } from './components/PublicReport';
 
 // Client-side convenience only; Firestore rules enforce this UID server-side.
 const ADMIN_UID = 'VZMngh2pukhR8r2RoZpNIopt4R82';
@@ -40,6 +41,7 @@ export default function App() {
   const [isBranchInfoOpen, setIsBranchInfoOpen] = useState<boolean>(false);
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
+  const reportToken = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('report');
 
   // Hook to fetch restaurant data dynamically from Firebase Firestore
   const { data: restaurant, loading, error, reload } = useRestaurant(slug);
@@ -106,6 +108,8 @@ export default function App() {
       document.title = `${restaurant.name} | ${isAr ? 'القائمة الرقمية' : 'Digital Menu'}`;
     }
   }, [lang, restaurant, isAr, viewMode]);
+
+  if (reportToken) return <PublicReport token={reportToken} />;
 
   // If in Admin Dashboard mode, render AdminDashboard
   if (viewMode === 'admin') {
