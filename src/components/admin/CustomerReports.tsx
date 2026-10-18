@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { addDoc, collection, doc, serverTimestamp, Timestamp, updateDoc } from 'firebase/firestore';
 import { ArrowUpRight, CalendarDays, FileBarChart2, MapPin, MessageCircle, Pencil, Phone, Search, X } from 'lucide-react';
 import { db } from '../../lib/firebase';
@@ -23,13 +23,31 @@ const normalizeYemenPhone = (value: string) => {
   return `+967${digits.replace(/^0/, '')}`;
 };
 
+const DEMO_CUSTOMER_ID = 'demo-customer-back-fries';
+const DEMO_CUSTOMER: RestaurantData = {
+  id: DEMO_CUSTOMER_ID, slug: 'demo-back-fries', name: 'BACK FRIES',
+  logoUrl: 'https://lh3.googleusercontent.com/aida/AEtjO1UYzrwvXqABYl6SLV7TZjhpohEHDAXg90Q2TXIx2bltHCE16e_iuisdpjuy80npzAzXKpz8dT9z1qA-y4BF6q2SYqSuOX7WikA021Kr3U74VlsinNtrepLG7dC3DQBEI4gybJ28cyV2X49VylVCBu6RQ2fmThXCyjolRueW-LuFnW9GhLwQv-_ib9iFFworDt64zvzyTqCUxPKCBPiCW4p1RM9e-IMO_9MkpRK0HrEbJJ1nX41tiAxSgTs',
+  primaryColor: '#A33900', currency: 'ر.س', type: 'restaurant', isActive: true,
+  businessInfo: 'مطعم وجبات سريعة · عميل افتراضي لمعاينة إدارة العملاء والتقارير',
+  client: { name: 'محمد أحمد (عميل افتراضي)', phone: '+967771234567', location: 'صنعاء، اليمن' },
+  contact: { phone: '+9671234567', whatsapp: '+9671234567', locationNameAr: 'شارع حدة، صنعاء', maps: 'https://maps.google.com/?q=Sanaa,Yemen' },
+  categories: [{ id: 'demo-fries', labelAr: 'البطاطس' }, { id: 'demo-burgers', labelAr: 'البرجر' }],
+  products: [
+    { id: 'demo-item-1', categoryId: 'demo-fries', nameAr: 'ترافل تشيزي فرايز', descriptionAr: '', price: 32, imageUrl: '' },
+    { id: 'demo-item-2', categoryId: 'demo-burgers', nameAr: 'دوبل سماش برجر', descriptionAr: '', price: 42, imageUrl: '' },
+  ],
+};
+
 export const CustomerReports: React.FC<Props> = ({ restaurants, venueTypes = [], onToast }) => {
+  const demoOnly = restaurants.length === 0;
   const [clients, setClients] = useState(restaurants);
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<RestaurantData | null>(null);
   const [preview, setPreview] = useState<ReportData | null>(null);
   const [editing, setEditing] = useState<RestaurantData | null>(null);
-  const filtered = useMemo(() => clients.filter(r => `${r.name} ${r.client?.name || ''} ${r.id} ${r.contact?.phone || ''} ${r.client?.phone || ''}`.toLowerCase().includes(query.toLowerCase())), [clients, query]);
+  useEffect(() => setClients(restaurants), [restaurants]);
+  const visibleClients = demoOnly ? [DEMO_CUSTOMER] : clients;
+  const filtered = useMemo(() => visibleClients.filter(r => `${r.name} ${r.client?.name || ''} ${r.id} ${r.contact?.phone || ''} ${r.client?.phone || ''}`.toLowerCase().includes(query.toLowerCase())), [visibleClients, query]);
   const venueLabel = (r: RestaurantData) => venueTypes.find(t => t.id === r.type)?.labelAr || typeName(r.type);
 
   return <section className="space-y-5 text-white">
@@ -37,6 +55,7 @@ export const CustomerReports: React.FC<Props> = ({ restaurants, venueTypes = [],
       <div><p className="text-sm text-zinc-400">بيانات العميل وصاحب النشاط التجاري وتقاريره</p><h2 className="mt-1 text-2xl font-black">إدارة العملاء</h2></div>
       <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5"><Search size={16} className="text-zinc-400"/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="ابحث بالاسم أو الكود أو الرقم" className="w-64 max-w-full bg-transparent text-sm outline-none"/></label>
     </header>
+    {demoOnly && <div className="rounded-xl border border-amber-300/20 bg-amber-300/[0.06] px-4 py-3 text-xs leading-5 text-amber-100"><strong>وضع المعاينة:</strong> هذه بطاقة عميل افتراضي لتجربة شكل البيانات والتقرير. لن تُحفظ بياناته أو يُرسل تقرير حقيقي.</div>}
     <div className="grid gap-4 xl:grid-cols-2">
       {filtered.map(r => {
         const customerPhone = r.client?.phone || '';
@@ -45,7 +64,7 @@ export const CustomerReports: React.FC<Props> = ({ restaurants, venueTypes = [],
         const businessDigits = phoneDigits(r.contact?.whatsapp || businessPhone);
         return <article key={r.id} className="overflow-hidden rounded-2xl border border-white/10 bg-[#202022]">
           <div className="p-4 sm:p-5">
-            <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-[11px] font-bold text-[#F7E354]">بيانات العميل</p><h3 className="truncate text-lg font-extrabold">{r.client?.name || 'اسم العميل غير مسجل'}</h3></div><button onClick={() => setEditing(r)} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-2 text-xs font-bold text-zinc-300 hover:bg-white/5"><Pencil size={13}/> تعديل البيانات</button></div>
+            <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-[11px] font-bold text-[#F7E354]">بيانات العميل</p><h3 className="truncate text-lg font-extrabold">{r.client?.name || 'اسم العميل غير مسجل'}</h3></div>{!demoOnly && <button onClick={() => setEditing(r)} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-2 text-xs font-bold text-zinc-300 hover:bg-white/5"><Pencil size={13}/> تعديل البيانات</button>}</div>
             <div className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
               <InfoLine icon={<MapPin size={15}/>} label="موقع العميل" value={r.client?.location} href={r.client?.locationUrl}/>
               <InfoLine icon={<FileBarChart2 size={15}/>} label="نشاط العميل" value={`${venueLabel(r)} · كود ${r.id}`}/>
@@ -60,7 +79,7 @@ export const CustomerReports: React.FC<Props> = ({ restaurants, venueTypes = [],
             <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-zinc-400"><InfoLine icon={<MapPin size={14}/>} label="موقع النشاط" value={r.contact?.locationNameAr} href={r.contact?.maps}/><span className="inline-flex items-center gap-1.5"><Phone size={14}/><span dir="ltr">{businessPhone || 'رقم المحل غير مسجل'}</span></span></div>
             <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-white/10 pt-3">
               <div className="flex gap-2">{businessPhone && <><a href={`tel:${businessPhone}`} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-2 text-xs font-bold text-zinc-300"><Phone size={13}/> اتصال بالمحل</a><a target="_blank" rel="noreferrer" href={`https://wa.me/${businessDigits}`} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-2 text-xs font-bold text-zinc-300"><MessageCircle size={13}/> واتساب المحل</a></>}</div>
-              <button onClick={() => setSelected(r)} className="inline-flex items-center gap-2 rounded-xl bg-[#F7E354] px-3 py-2 text-xs font-black text-zinc-900"><FileBarChart2 size={15}/> إعداد التقرير</button>
+              <button onClick={() => setSelected(r)} className="inline-flex items-center gap-2 rounded-xl bg-[#F7E354] px-3 py-2 text-xs font-black text-zinc-900"><FileBarChart2 size={15}/>{demoOnly ? 'معاينة التقرير' : 'إعداد التقرير'}</button>
             </div>
           </div>
         </article>;
@@ -97,6 +116,7 @@ function ClientEditor({ restaurant, onClose, onToast, onSave }: { restaurant: Re
 }
 
 function ReportComposer({ restaurant, onClose, onToast, onPreview }: { restaurant: RestaurantData; onClose: () => void; onToast: (message: string) => void; onPreview: (report: ReportData) => void }) {
+  const isDemo = restaurant.id === DEMO_CUSTOMER_ID;
   const [startDate, setStartDate] = useState(initialStart);
   const [endDate, setEndDate] = useState(today);
   const [customMessage, setCustomMessage] = useState('مرحباً {name}، تقرير نشاط منيو {restaurant} للفترة من {start} إلى {end}: {url}');
@@ -147,6 +167,7 @@ function ReportComposer({ restaurant, onClose, onToast, onPreview }: { restauran
     <div className="mt-4 space-y-3"><p className="text-xs font-bold text-zinc-300">محتويات التقرير</p><label className="flex gap-2 text-sm"><input type="checkbox" checked={includeMenu} onChange={e => setIncludeMenu(e.target.checked)}/>ملخص المنيو والأقسام والأصناف</label><label className="flex gap-2 text-sm"><input type="checkbox" checked={includeStatus} onChange={e => setIncludeStatus(e.target.checked)}/>حالة المنيو وقت إنشاء التقرير</label></div>
     <label className="mt-5 block text-xs font-bold text-zinc-300">نص رسالة واتساب <span className="font-normal text-zinc-500">(المتغيرات: {'{name}'}, {'{start}'}, {'{end}'}, {'{url}'})</span><textarea rows={3} value={customMessage} onChange={e => setCustomMessage(e.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-[#111] p-3 text-sm leading-6 text-white outline-none focus:border-[#F7E354]"/></label>
     <button onClick={() => onPreview(reportData)} className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 py-3 font-bold text-white"><FileBarChart2 size={18}/>معاينة التقرير كما سيراه العميل</button>
-    <button disabled={busy} onClick={send} className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-[#F7E354] py-3 font-black text-zinc-900 disabled:opacity-50"><MessageCircle size={18}/>{busy ? 'جارٍ تجهيز الرابط…' : 'إنشاء التقرير وفتح واتساب'}<ArrowUpRight size={16}/></button><p className="mt-3 text-center text-[11px] leading-5 text-zinc-500">سيُفتح واتساب على رقم العميل؛ راجع الرسالة ثم أرسلها بنفسك.</p>
+    {!isDemo && <><button disabled={busy} onClick={send} className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-[#F7E354] py-3 font-black text-zinc-900 disabled:opacity-50"><MessageCircle size={18}/>{busy ? 'جارٍ تجهيز الرابط…' : 'إنشاء التقرير وفتح واتساب'}<ArrowUpRight size={16}/></button><p className="mt-3 text-center text-[11px] leading-5 text-zinc-500">سيُفتح واتساب على رقم العميل؛ راجع الرسالة ثم أرسلها بنفسك.</p></>}
+    {isDemo && <p className="mt-3 text-center text-[11px] leading-5 text-amber-200">هذا عميل افتراضي؛ استخدم المعاينة فقط. لن يُنشأ رابط أو تُفتح محادثة واتساب.</p>}
   </div></div>;
 }
