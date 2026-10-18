@@ -40,6 +40,13 @@ export interface RestaurantContact {
   workingHoursEn?: string;
 }
 
+export interface ClientContact {
+  name?: string;
+  phone?: string;
+  location?: string;
+  locationUrl?: string;
+}
+
 export interface RestaurantData {
   id: string;
   slug: string;
@@ -71,6 +78,8 @@ export interface RestaurantData {
   categories: Category[];
   products: MenuItem[];
   contact: RestaurantContact;
+  client?: ClientContact;
+  businessInfo?: string;
 }
 
 export interface PlatformSettings {
