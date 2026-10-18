@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { onAuthStateChanged, signOut, User } from 'firebase/auth';
 import { useRestaurant } from './hooks/useRestaurant';
 import { Header } from './components/Header';
 import { MenuItemCard } from './components/MenuItemCard';
@@ -9,8 +10,12 @@ import { LoadingState } from './components/LoadingState';
 import { ErrorState } from './components/ErrorState';
 import { AdminDashboard } from './components/admin/AdminDashboard';
 import { Category, MenuItem } from './types/restaurant';
-import { seedBackFriesToFirestore } from './lib/seedData';
 import { ShieldCheck, AlertCircle } from 'lucide-react';
+import { auth } from './lib/firebase';
+import { AdminLogin } from './components/AdminLogin';
+
+// Client-side convenience only; Firestore rules enforce this UID server-side.
+const ADMIN_UID = 'VZMngh2pukhR8r2RoZpNIopt4R82';
 
 // Helper to get slug from URL query params: ?id=xxx or ?restaurant=xxx or ?slug=xxx
 function getInitialSlug(): string {
@@ -33,32 +38,16 @@ export default function App() {
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
   const [isBranchInfoOpen, setIsBranchInfoOpen] = useState<boolean>(false);
-  const [isSeeding, setIsSeeding] = useState<boolean>(false);
+  const [authUser, setAuthUser] = useState<User | null>(null);
+  const [authReady, setAuthReady] = useState(false);
 
   // Hook to fetch restaurant data dynamically from Firebase Firestore
   const { data: restaurant, loading, error, reload } = useRestaurant(slug);
 
-  const handleSeed = async () => {
-    setIsSeeding(true);
-    try {
-      const res = await seedBackFriesToFirestore();
-      if (res.success) {
-        console.log("Firestore seeded successfully with backfries data!");
-        try {
-          window.alert("✅ تم زرع بيانات BACK FRIES في Firestore بنجاح! جاري تحديث المنيو...");
-        } catch {}
-        handleSelectSlug('backfries');
-        reload();
-      } else {
-        console.error("Error seeding Firestore:", res.error);
-        alert(`حدث خطأ أثناء الزرع: ${res.error}`);
-      }
-    } catch (err) {
-      console.error("Unexpected error:", err);
-    } finally {
-      setIsSeeding(false);
-    }
-  };
+  useEffect(() => onAuthStateChanged(auth, (user) => {
+    setAuthUser(user);
+    setAuthReady(true);
+  }), []);
 
   const isAr = lang === 'ar';
 
@@ -120,11 +109,28 @@ export default function App() {
 
   // If in Admin Dashboard mode, render AdminDashboard
   if (viewMode === 'admin') {
+    if (!authReady) return <LoadingState />;
+    if (!authUser) return <AdminLogin lang={lang} />;
+    if (authUser.uid !== ADMIN_UID) {
+      return (
+        <main dir={lang === 'ar' ? 'rtl' : 'ltr'} className="min-h-screen bg-zinc-950 text-white flex items-center justify-center p-6">
+          <section className="max-w-md rounded-2xl border border-zinc-800 bg-zinc-900 p-7 text-center">
+            <h1 className="text-xl font-bold">{lang === 'ar' ? 'لا تملك صلاحية الإدارة' : 'Admin access denied'}</h1>
+            <p className="mt-2 text-sm text-zinc-400">{lang === 'ar' ? 'هذا الحساب غير معتمد لإدارة المنصة.' : 'This account is not authorized to manage the platform.'}</p>
+            <button onClick={() => signOut(auth)} className="mt-5 rounded-lg bg-amber-400 px-4 py-2 font-bold text-zinc-950">{lang === 'ar' ? 'تسجيل الخروج' : 'Sign out'}</button>
+          </section>
+        </main>
+      );
+    }
     return (
-      <AdminDashboard
-        onBackToMenu={(target) => handleToggleView('client', target)}
-        lang={lang}
-      />
+      <>
+        <div className="fixed bottom-3 left-3 z-[100]">
+          <button onClick={() => signOut(auth)} className="rounded-lg border border-zinc-700 bg-zinc-950/90 px-3 py-2 text-xs font-bold text-white shadow-lg">
+            {lang === 'ar' ? 'تسجيل الخروج' : 'Sign out'}
+          </button>
+        </div>
+        <AdminDashboard onBackToMenu={(target) => handleToggleView('client', target)} lang={lang} />
+      </>
     );
   }
 
@@ -205,15 +211,6 @@ export default function App() {
           >
             <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
             <span>لوحة الإدارة (Admin)</span>
-          </button>
-
-          {/* Seed button */}
-          <button
-            onClick={handleSeed}
-            disabled={isSeeding}
-            className="px-2.5 py-1 rounded-md bg-black hover:bg-zinc-900 text-amber-400 border border-amber-400/20 text-[10px] font-bold cursor-pointer transition-all shadow-xs flex items-center gap-1 disabled:opacity-50 hidden sm:flex"
-          >
-            <span>{isSeeding ? '⏳ جاري الزرع...' : '🌱 زرع بيانات BACK FRIES'}</span>
           </button>
 
           <span className="text-[10px] text-zinc-300">|</span>
