@@ -7,6 +7,7 @@ import { VenuesManagement } from './VenuesManagement';
 import { PlatformSettings } from './PlatformSettings';
 import { QRCodeModal } from './QRCodeModal';
 import { AnalyticsTab, DateFilterType } from './AnalyticsTab';
+import { CustomerReports } from './CustomerReports';
 
 export interface DailyStatRecord {
   date: string;
@@ -62,7 +63,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   lang = 'ar'
 }) => {
   // Navigation active tab
-  const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'venues' | 'settings'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'venues' | 'customers' | 'settings'>('overview');
 
   // Advanced Date Range Filter States
   const [dateFilter, setDateFilter] = useState<DateFilterType>('today');
@@ -1340,6 +1341,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </button>
 
             <button
+              onClick={() => setActiveTab('customers')}
+              className={`nav-btn w-full flex items-center justify-between px-4 py-3.5 rounded-2xl text-sm font-bold transition-all cursor-pointer ${activeTab === 'customers' ? 'bg-[#2C2C2E] text-[#F7E354] shadow-sm border border-white/5' : 'text-zinc-400 hover:text-white hover:bg-white/5'}`}
+            ><div className="flex items-center gap-3"><span className="material-symbols-outlined text-[20px]">groups</span><span>إدارة العملاء</span></div><span className="material-symbols-outlined text-[16px]">chevron_left</span></button>
+
+            <button
               onClick={() => setActiveTab('settings')}
               className={`nav-btn w-full flex items-center justify-between px-4 py-3.5 rounded-2xl text-sm font-bold transition-all cursor-pointer ${
                 activeTab === 'settings'
@@ -1379,6 +1385,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           ['overview', 'dashboard', 'الرئيسية'],
           ['analytics', 'trending_up', 'الإحصاءات'],
           ['venues', 'storefront', 'المطاعم'],
+          ['customers', 'groups', 'العملاء'],
           ['settings', 'tune', 'الإعدادات']
         ] as const).map(([tab, icon, label]) => (
           <button
@@ -1409,6 +1416,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               {activeTab === 'overview' && 'نظرة عامة على المنظومة'}
               {activeTab === 'analytics' && 'إحصائيات الزوار ومسحات الـ QR'}
               {activeTab === 'venues' && 'إدارة المطاعم والمقاهي والأعمدة'}
+              {activeTab === 'customers' && 'بيانات العملاء ومشاركة تقاريرهم'}
               {activeTab === 'settings' && 'إعدادات هوية المنصة والداشبورد'}
             </h1>
           </div>
@@ -1839,6 +1847,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               />
             </div>
           )}
+
+          {activeTab === 'customers' && <CustomerReports restaurants={restaurants} onToast={showToast} />}
 
           {/* ================= TAB 3: PLATFORM SETTINGS ================= */}
           {activeTab === 'settings' && (
