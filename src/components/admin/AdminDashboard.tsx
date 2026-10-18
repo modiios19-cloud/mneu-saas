@@ -240,6 +240,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           products,
           contact: d.contact || {},
           client: d.client || {},
+          businessInfo: d.businessInfo || '',
+          client: d.client || {},
           businessInfo: d.businessInfo || ''
         });
       });
