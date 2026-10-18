@@ -2,9 +2,13 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Public, read-only report links use an unguessable Firestore document ID.
+    // Only the platform administrator can create, update, or revoke reports.
     match /publicReports/{reportId} {
-      allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == 'VZMngh2pukhR8r2RoZpNIopt4R82';
+      allow read: if resource.data.expiresAt is timestamp
+        && request.time < resource.data.expiresAt;
+      allow write: if request.auth != null
+        && request.auth.uid == 'VZMngh2pukhR8r2RoZpNIopt4R82';
     }
 
     match /restaurants/{restaurantId} {
