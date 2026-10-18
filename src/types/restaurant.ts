@@ -1,0 +1,80 @@
+export interface Category {
+  id: string;
+  labelAr: string;
+  labelEn?: string;
+  sublabelEn?: string;
+  name?: string;
+  nameEn?: string;
+  icon?: string;
+  isActive?: boolean;
+}
+
+export type ItemBadge = 'popular' | 'new' | 'offer' | 'soldout' | 'spicy';
+
+export interface MenuItem {
+  id: string;
+  categoryId: string;
+  nameAr: string;
+  nameEn?: string;
+  descriptionAr: string;
+  descriptionEn?: string;
+  price: number;
+  calories?: number;
+  imageUrl: string;
+  isPopular?: boolean;
+  isSpicy?: boolean;
+  isVegetarian?: boolean;
+  badge?: ItemBadge | string;
+  isSoldOut?: boolean;
+}
+
+export interface RestaurantContact {
+  phone?: string;
+  whatsapp?: string;
+  maps?: string;
+  instagram?: string;
+  tiktok?: string;
+  locationNameAr?: string;
+  locationNameEn?: string;
+  workingHoursAr?: string;
+  workingHoursEn?: string;
+}
+
+export interface RestaurantData {
+  id: string;
+  slug: string;
+  name: string;
+  nameEn?: string;
+  logoUrl: string;
+  coverUrl?: string;
+  primaryColor: string;
+  secondaryColor?: string;
+  currency?: string;
+  statusText?: string;
+  statusTextEn?: string;
+  isActive?: boolean;
+  type?: 'restaurant' | 'cafe' | string;
+  themeConfig?: Record<string, any>;
+  layoutStyle?: string;
+  fontFamily?: string;
+  borderRadius?: string;
+  scansCount?: number;
+  views?: number;
+  lastScanAt?: string;
+  dailyViews?: { date: string; views: number; scans: number }[];
+  analytics?: {
+    qr: number;
+    social: number;
+    direct: number;
+    categoryViews?: { categoryId: string; views: number }[];
+  };
+  categories: Category[];
+  products: MenuItem[];
+  contact: RestaurantContact;
+}
+
+export interface PlatformSettings {
+  platformName: string;
+  platformLogoUrl?: string;
+  allowedVenueTypes?: { id: string; labelAr: string; icon?: string }[];
+}
