@@ -6,6 +6,7 @@
       <stop offset="1" stop-color="#B8862B"/>
     </linearGradient>
   </defs>
+  <rect width="980" height="280" rx="28" fill="#1C1D20"/>
   <circle cx="832" cy="140" r="112" stroke="url(#gold)" stroke-opacity=".28" stroke-width="2"/>
   <circle cx="832" cy="140" r="96" fill="#222326" stroke="url(#gold)" stroke-opacity=".24" stroke-width="2"/>
   <path d="M832 40 842 70 868 51 856 80 888 88 858 99 877 126 848 115 840 149 832 119 822 148 816 115 786 126 805 99 775 88 807 80 795 51 821 70 832 40Z" fill="url(#gold)"/>
@@ -13,8 +14,8 @@
   <path d="M780 181c7-31 27-49 52-49s45 18 52 49" stroke="url(#gold)" stroke-width="6" stroke-linecap="round"/>
   <path d="M773 186h118M789 201h86" stroke="url(#gold)" stroke-width="6" stroke-linecap="round"/>
   <circle cx="832" cy="132" r="5" fill="#F3D276"/>
-  <text x="700" y="76" text-anchor="end" fill="#F2D475" font-family="Arial, Tahoma, sans-serif" font-size="25" font-weight="600" direction="rtl">الشركة اليمنية للذكاء الاصطناعي</text>
+  <text x="700" y="76" text-anchor="start" fill="#F2D475" font-family="Arial, Tahoma, sans-serif" font-size="25" font-weight="600" direction="rtl">الشركة اليمنية للذكاء الاصطناعي</text>
   <text x="700" y="151" text-anchor="end" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="62" font-weight="800" letter-spacing="7">YCOAI</text>
   <path d="M360 172h340" stroke="#E9BF55" stroke-opacity=".45" stroke-width="2"/>
-  <text x="700" y="216" text-anchor="end" fill="#D8D8D5" font-family="Arial, Tahoma, sans-serif" font-size="27" font-weight="600" direction="rtl">قسم إدارة المطاعم</text>
+  <text x="700" y="216" text-anchor="start" fill="#D8D8D5" font-family="Arial, Tahoma, sans-serif" font-size="27" font-weight="600" direction="rtl">قسم إدارة المطاعم</text>
 </svg>
