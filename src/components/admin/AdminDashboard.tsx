@@ -1848,7 +1848,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
           )}
 
-          {activeTab === 'customers' && <CustomerReports restaurants={restaurants} onToast={showToast} />}
+          {activeTab === 'customers' && <CustomerReports restaurants={restaurants} venueTypes={platformSettings.allowedVenueTypes || []} onToast={showToast} />}
 
           {/* ================= TAB 3: PLATFORM SETTINGS ================= */}
           {activeTab === 'settings' && (
