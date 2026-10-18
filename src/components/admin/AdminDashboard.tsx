@@ -74,7 +74,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   // Platform general settings
   const [platformSettings, setPlatformSettings] = useState<PlatformSettingsType>({
-    platformName: 'WiseMenu',
+    platformName: 'YCOAI',
     platformLogoUrl: '',
     allowedVenueTypes: [
       { id: 'restaurant', labelAr: 'مطاعم' },
@@ -122,7 +122,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       if (snap.exists()) {
         const data = snap.data() as PlatformSettingsType;
         setPlatformSettings({
-          platformName: data.platformName || 'WiseMenu',
+          platformName: !data.platformName || data.platformName === 'WiseMenu' ? 'YCOAI' : data.platformName,
           platformLogoUrl: data.platformLogoUrl || '',
           allowedVenueTypes: data.allowedVenueTypes || [
             { id: 'restaurant', labelAr: 'مطاعم' },
@@ -1275,24 +1275,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             {platformSettings.platformLogoUrl ? (
               <img
                 src={platformSettings.platformLogoUrl}
-                alt="Logo"
-                className="w-10 h-10 rounded-2xl object-cover bg-black border border-white/10"
+                alt="شعار المنصة"
+                className="w-11 h-11 rounded-2xl object-contain bg-black border border-white/10"
               />
             ) : (
-              <div className="w-10 h-10 rounded-2xl bg-[#F7E354] flex items-center justify-center text-black font-extrabold shadow-[0_0_20px_rgba(247,227,84,0.3)]">
-                <span className="material-symbols-outlined text-2xl font-bold">restaurant</span>
-              </div>
+              <img src="/ycoai-restaurant-control-mark.svg" alt="شعار الشركة اليمنية للذكاء الاصطناعي" className="w-11 h-11 shrink-0" />
             )}
             <div className="flex flex-col">
-              <span className="text-base font-black tracking-tight text-white flex items-center gap-1.5">
-                <span>{platformSettings.platformName || 'WiseMenu'}</span>
-                <span className="text-[9px] bg-[#F7E354] text-black px-1.5 py-0.5 rounded font-black tracking-wide">
-                  SaaS
-                </span>
+              <span className="text-sm font-black tracking-wide text-[#F2D475]">
+                {platformSettings.platformName || 'YCOAI'}
               </span>
-              <span className="text-[10px] text-zinc-500 font-mono tracking-wider">
-                ENTERPRISE CONTROL
-              </span>
+              <span className="text-[8px] leading-3 text-zinc-400">الشركة اليمنية للذكاء الاصطناعي</span>
+              <span className="text-[9px] font-semibold leading-3 text-white">قسم إدارة المطاعم</span>
             </div>
             <span className="material-symbols-outlined mr-auto text-zinc-500 text-lg">verified_user</span>
           </div>
