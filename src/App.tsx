@@ -32,6 +32,14 @@ function getInitialView(): 'client' | 'admin' {
   return params.get('admin') === 'true' || params.get('view') === 'admin' ? 'admin' : 'client';
 }
 
+function buildStitchDocument(source: string, data: Record<string, unknown>): string {
+  // Keep imported design code isolated from the dashboard's origin and Firebase session.
+  const safeData = JSON.stringify(data).replace(/</g, '\\u003c');
+  const bridge = `<script>window.MENU_DATA=${safeData};</script>`;
+  const head = /<head[^>]*>/i;
+  return head.test(source) ? source.replace(head, (match) => `${match}${bridge}`) : `${bridge}${source}`;
+}
+
 export default function App() {
   const [viewMode, setViewMode] = useState<'client' | 'admin'>(getInitialView);
   const [slug, setSlug] = useState<string>(getInitialSlug);
@@ -52,6 +60,7 @@ export default function App() {
   }), []);
 
   const isAr = lang === 'ar';
+
 
   // Listen for browser navigation / popstate
   useEffect(() => {
@@ -177,6 +186,37 @@ export default function App() {
   const visibleSections = activeCategory === 'all'
     ? categoriesWithProducts.filter((c) => c.id !== 'all' && c.items.length > 0)
     : categoriesWithProducts.filter((c) => c.id === activeCategory);
+
+  if (restaurant.stitchDesignCode?.trim()) {
+    const stitchData = {
+      restaurant: {
+        id: restaurant.id,
+        slug: restaurant.slug,
+        name: restaurant.name,
+        nameEn: restaurant.nameEn,
+        logoUrl: restaurant.logoUrl,
+        primaryColor,
+        secondaryColor: restaurant.secondaryColor,
+        currency,
+        type: restaurant.type,
+        contact: restaurant.contact,
+        statusText: restaurant.statusText
+      },
+      categories: restaurant.categories,
+      products: restaurant.products,
+      offers: restaurant.products.filter((item) => item.badge === 'offer'),
+      updatedAt: restaurant.updatedAt || null
+    };
+    return (
+      <iframe
+        title={`منيو ${restaurant.name}`}
+        className="block w-full min-h-screen border-0 bg-white"
+        sandbox="allow-scripts allow-forms allow-popups"
+        referrerPolicy="strict-origin-when-cross-origin"
+        srcDoc={buildStitchDocument(restaurant.stitchDesignCode, stitchData)}
+      />
+    );
+  }
 
   return (
     <div
