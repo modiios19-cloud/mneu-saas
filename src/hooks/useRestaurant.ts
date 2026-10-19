@@ -122,10 +122,14 @@ function normalizeRestaurantData(docId: string, rawData: any): RestaurantData {
     descriptionAr: item.description || item.descriptionAr || '',
     descriptionEn: item.descriptionEn || item.description || '',
     price: Number(item.price) || 0,
+    originalPrice: item.originalPrice ? Number(item.originalPrice) : undefined,
     calories: item.calories,
     imageUrl: item.image || item.imageUrl || '',
     isPopular: item.category === 'الأكثر طلباً' || item.isPopular || false,
-    isSpicy: item.isSpicy || false
+    isSpicy: item.isSpicy || false,
+    isVegetarian: item.isVegetarian || false,
+    isSoldOut: item.isSoldOut || false,
+    badge: item.badge
   }));
 
   return {
@@ -134,6 +138,8 @@ function normalizeRestaurantData(docId: string, rawData: any): RestaurantData {
     name: rawData.name || 'Restaurant',
     nameEn: rawData.nameEn || rawData.name,
     logoUrl,
+    stitchDesignCode: typeof rawData.stitchDesignCode === 'string' ? rawData.stitchDesignCode : '',
+    updatedAt: rawData.updatedAt || '',
     primaryColor: rawData.primaryColor || '#A33900',
     secondaryColor: rawData.secondaryColor || '#FFEDE5',
     currency: rawData.currency || 'ر.س',
