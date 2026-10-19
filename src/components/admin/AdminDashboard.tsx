@@ -1279,7 +1279,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 className="w-11 h-11 rounded-2xl object-contain bg-black border border-white/10"
               />
             ) : (
-              <img src="/ycoai-restaurant-control-mark.svg" alt="شعار الشركة اليمنية للذكاء الاصطناعي" className="w-11 h-11 shrink-0" />
+              <div className="w-11 h-11 shrink-0 rounded-2xl bg-[#F7E354] flex items-center justify-center text-black shadow-[0_0_20px_rgba(247,227,84,0.2)]">
+                <span className="material-symbols-outlined text-2xl font-bold">restaurant</span>
+              </div>
             )}
             <div className="flex flex-col">
               <span className="text-sm font-black tracking-wide text-[#F2D475]">
