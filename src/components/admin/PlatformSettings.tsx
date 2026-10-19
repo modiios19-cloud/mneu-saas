@@ -2,11 +2,30 @@ import React, { useState } from 'react';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { PlatformSettings as PlatformSettingsType } from '../../types/restaurant';
-import { Save, Store, CheckCircle2, RefreshCw, Plus, Trash2, Sliders } from 'lucide-react';
+import { Save, Store, CheckCircle2, RefreshCw, Plus, Trash2, Sliders, Upload, X } from 'lucide-react';
 
 interface PlatformSettingsProps {
   settings: PlatformSettingsType;
   onSaved: (updated: PlatformSettingsType) => void;
+}
+
+async function compressLogo(file: File): Promise<string> {
+  if (!file.type.startsWith('image/')) throw new Error('اختر ملف صورة صالحًا.');
+  if (file.size > 8 * 1024 * 1024) throw new Error('حجم الصورة كبير؛ اختر صورة أصغر من 8 ميغابايت.');
+  const image = await createImageBitmap(file);
+  const scale = Math.min(1, 512 / Math.max(image.width, image.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(image.width * scale));
+  canvas.height = Math.max(1, Math.round(image.height * scale));
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('تعذرت معالجة الصورة في هذا المتصفح.');
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+  image.close();
+  for (const quality of [0.86, 0.72, 0.58, 0.44]) {
+    const dataUrl = canvas.toDataURL('image/webp', quality);
+    if (dataUrl.startsWith('data:image/webp') && dataUrl.length <= 320_000) return dataUrl;
+  }
+  throw new Error('تعذر ضغط الشعار للحجم المسموح. استخدم شعارًا أبسط أو رابط صورة.');
 }
 
 export const PlatformSettings: React.FC<PlatformSettingsProps> = ({
@@ -15,6 +34,7 @@ export const PlatformSettings: React.FC<PlatformSettingsProps> = ({
 }) => {
   const [platformName, setPlatformName] = useState(settings.platformName || 'منصة إدارة المطاعم');
   const [platformLogoUrl, setPlatformLogoUrl] = useState(settings.platformLogoUrl || '');
+  const [compressingLogo, setCompressingLogo] = useState(false);
   const [venueTypes, setVenueTypes] = useState(
     settings.allowedVenueTypes || [
       { id: 'restaurant', labelAr: 'مطاعم' },
@@ -28,6 +48,19 @@ export const PlatformSettings: React.FC<PlatformSettingsProps> = ({
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const handleLogoFile = async (file?: File) => {
+    if (!file) return;
+    setCompressingLogo(true);
+    try {
+      setPlatformLogoUrl(await compressLogo(file));
+      showToast('تم تجهيز الشعار؛ اضغط حفظ لتطبيقه');
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'تعذر تجهيز الشعار.');
+    } finally {
+      setCompressingLogo(false);
+    }
   };
 
   const handleAddType = () => {
@@ -125,14 +158,15 @@ export const PlatformSettings: React.FC<PlatformSettingsProps> = ({
 
           <div>
             <label className="text-xs font-bold text-black block mb-1">
-              رابط شعار المنصة (Logo URL)
+              شعار لوحة التحكم
             </label>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <input
-                type="url"
-                value={platformLogoUrl}
+                type="text"
+                inputMode="url"
+                value={platformLogoUrl.startsWith('data:') ? '' : platformLogoUrl}
                 onChange={(e) => setPlatformLogoUrl(e.target.value)}
-                placeholder="https://..."
+                placeholder={platformLogoUrl.startsWith('data:') ? 'تم رفع صورة من الجهاز؛ الصق رابطًا لاستبدالها' : 'الصق رابط صورة الشعار (اختياري)'}
                 className="flex-1 text-xs p-3 rounded-xl border border-zinc-200 focus:outline-none focus:border-black bg-zinc-50/50"
               />
               {platformLogoUrl ? (
@@ -147,8 +181,16 @@ export const PlatformSettings: React.FC<PlatformSettingsProps> = ({
                 </div>
               )}
             </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <label className={`inline-flex cursor-pointer items-center gap-2 rounded-xl bg-black px-3 py-2 text-xs font-bold text-amber-400 ${compressingLogo ? 'opacity-50' : ''}`}>
+                <Upload className="h-4 w-4"/>
+                {compressingLogo ? 'جارٍ تجهيز الصورة…' : 'رفع صورة من الجهاز'}
+                <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" disabled={compressingLogo} onChange={e => { void handleLogoFile(e.target.files?.[0]); e.currentTarget.value = ''; }}/>
+              </label>
+              {platformLogoUrl && <button type="button" onClick={() => setPlatformLogoUrl('')} className="inline-flex items-center gap-1 rounded-xl border border-zinc-200 px-3 py-2 text-xs font-bold text-zinc-600"><X className="h-3.5 w-3.5"/>إزالة الشعار</button>}
+            </div>
             <p className="text-[10px] text-zinc-400 mt-1">
-              يظهر هذا الشعار في القائمة الجانبية وأعلى لوحة التحكم
+              ارفع PNG أو JPG أو WebP، أو الصق رابطًا. يُضغط الشعار محليًا قبل حفظه في إعدادات المنصة.
             </p>
           </div>
         </div>
@@ -201,7 +243,7 @@ export const PlatformSettings: React.FC<PlatformSettingsProps> = ({
         <div className="pt-2">
           <button
             type="submit"
-            disabled={saving}
+            disabled={saving || compressingLogo}
             className="w-full py-3.5 px-6 rounded-2xl bg-amber-400 hover:bg-amber-300 text-black font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
           >
             {saving ? (
