@@ -19,6 +19,7 @@ export interface MenuItem {
   descriptionAr: string;
   descriptionEn?: string;
   price: number;
+  originalPrice?: number;
   calories?: number;
   imageUrl: string;
   isPopular?: boolean;
@@ -62,6 +63,8 @@ export interface RestaurantData {
   isActive?: boolean;
   type?: 'restaurant' | 'cafe' | string;
   themeConfig?: Record<string, any>;
+  /** Self-contained HTML exported for this menu, authored in Stitch. */
+  stitchDesignCode?: string;
   layoutStyle?: string;
   fontFamily?: string;
   borderRadius?: string;
@@ -80,6 +83,7 @@ export interface RestaurantData {
   contact: RestaurantContact;
   client?: ClientContact;
   businessInfo?: string;
+  updatedAt?: string;
 }
 
 export interface PlatformSettings {
