@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
+import { buildStitchDocument } from '../../lib/stitchDesign';
 import { RestaurantData, Category, MenuItem, ItemBadge } from '../../types/restaurant';
 import {
   Save,
@@ -60,6 +61,7 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
   const [isMobileFrame, setIsMobileFrame] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const stitchPreviewRef = useRef<HTMLIFrameElement>(null);
 
   // Modal for changing an image URL
   const [editingImageTarget, setEditingImageTarget] = useState<{
@@ -70,6 +72,35 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
   const [imageUrlInput, setImageUrlInput] = useState('');
 
   const primaryColor = draft.primaryColor || '#A33900';
+  const stitchMenuData = useMemo(() => ({
+    restaurant: {
+      id: draft.id,
+      slug: draft.slug,
+      name: draft.name,
+      nameEn: draft.nameEn,
+      logoUrl: draft.logoUrl,
+      primaryColor,
+      secondaryColor: draft.secondaryColor,
+      currency: draft.currency || 'ر.س',
+      type: draft.type,
+      contact: draft.contact,
+      statusText: draft.statusText
+    },
+    categories: draft.categories,
+    products: draft.products,
+    offers: draft.products.filter((item) => item.badge === 'offer'),
+    updatedAt: draft.updatedAt || null
+  }), [draft, primaryColor]);
+  const stitchPreviewDocument = useMemo(
+    () => draft.stitchDesignCode ? buildStitchDocument(draft.stitchDesignCode, {
+      restaurant: {}, categories: [], products: [], offers: [], updatedAt: null
+    }) : '',
+    [draft.stitchDesignCode]
+  );
+
+  useEffect(() => {
+    stitchPreviewRef.current?.contentWindow?.postMessage({ type: 'MENU_DATA_UPDATE', payload: stitchMenuData }, '*');
+  }, [stitchMenuData]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -438,7 +469,7 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
       <details className="z-30 bg-zinc-950 text-white border-b border-zinc-800 px-4 py-3">
           <summary className="cursor-pointer text-xs font-bold text-amber-300">إضافة / استبدال تصميم Stitch</summary>
           <div className="max-w-5xl mx-auto pt-3 space-y-2">
-            <p className="text-[11px] text-zinc-400">الصق نسخة HTML جديدة من Stitch ثم احفظ. يجب أن يقرأ التصميم بيانات المنيو من <code dir="ltr">window.MENU_DATA</code>.</p>
+            <p className="text-[11px] text-zinc-400">الصق نسخة HTML جديدة من Stitch. تظهر معاينتها بجانب المحرر وتتحدث عند تعديل البيانات. يجب أن يقرأ التصميم <code dir="ltr">window.MENU_DATA</code> ويعيد العرض عند حدث <code dir="ltr">menu-data-update</code>.</p>
             <textarea
               value={draft.stitchDesignCode || ''}
               onChange={(e) => updateField('stitchDesignCode', e.target.value)}
@@ -450,9 +481,9 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
             <div className="text-left text-[10px] text-zinc-500">{new Blob([draft.stitchDesignCode || '']).size.toLocaleString()} / 400,000 بايت</div>
           </div>
       </details>
-      <div className="flex-1 overflow-y-auto no-scrollbar p-2 sm:p-6 flex justify-center items-start bg-zinc-200/60">
+      <div className={`flex-1 min-h-0 overflow-y-auto no-scrollbar p-2 sm:p-4 xl:p-6 bg-zinc-200/60 ${draft.stitchDesignCode ? 'grid grid-cols-1 xl:grid-cols-2 gap-4 xl:gap-6 items-start' : 'flex justify-center items-start'}`}>
         <div
-          className={`w-full bg-white transition-all duration-300 shadow-2xl relative ${
+          className={`w-full bg-white transition-all duration-300 shadow-2xl relative justify-self-center ${
             isMobileFrame
               ? 'max-w-md rounded-[40px] my-2 border-[8px] border-zinc-900 overflow-hidden min-h-[820px]'
               : 'max-w-2xl rounded-3xl min-h-[800px]'
@@ -780,6 +811,25 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
             </div>
           </div>
         </div>
+        {draft.stitchDesignCode && (
+          <section className="w-full max-w-[520px] xl:max-w-none justify-self-center xl:sticky xl:top-2 space-y-2">
+            <div className="flex items-center justify-between px-2 text-xs font-bold text-zinc-700">
+              <span className="flex items-center gap-2"><Eye className="w-4 h-4" /> معاينة تصميم Stitch الحية</span>
+              <span className="text-[10px] text-zinc-500">تتحدث مع تعديلات المحتوى</span>
+            </div>
+            <div className="h-[calc(100vh-150px)] min-h-[620px] overflow-hidden rounded-[28px] border-[7px] border-zinc-900 bg-white shadow-2xl">
+              <iframe
+                ref={stitchPreviewRef}
+                title={`معاينة تصميم ${draft.name}`}
+                className="h-full w-full border-0 bg-white"
+                sandbox="allow-scripts allow-forms allow-popups"
+                referrerPolicy="strict-origin-when-cross-origin"
+                srcDoc={stitchPreviewDocument}
+                onLoad={() => stitchPreviewRef.current?.contentWindow?.postMessage({ type: 'MENU_DATA_UPDATE', payload: stitchMenuData }, '*')}
+              />
+            </div>
+          </section>
+        )}
       </div>
 
       {/* MODAL: IMAGE URL PROMPT */}
