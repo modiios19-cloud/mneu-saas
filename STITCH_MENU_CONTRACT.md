@@ -43,9 +43,49 @@ Add `data-menu-edit` to each text or image element that should be editable. Use 
 
 For text, put the marker on the element that displays the data. For images, put it directly on the `<img>`. The dashboard enables in-place editing in the iframe and saves edits into the corresponding menu data field. Continue rendering values from `window.MENU_DATA`, and listen for `menu-data-update` to reflect edits immediately.
 
-## Prompt to use in Stitch
+## Copy this prompt into Stitch
 
-> Build this restaurant menu as a complete standalone responsive HTML document with inline CSS and plain JavaScript. Do not use React, JSX, build tools, or external JavaScript packages. The page runs in a sandboxed iframe and receives all editable content through `window.MENU_DATA` before its script runs. Render the restaurant logo/name/contact, category navigation, product cards, prices, descriptions, images, sold-out state, popular/new/offer badges, and offers from that object. Never hardcode restaurant-specific content. Render safely with DOM APIs and `textContent`; treat all menu values as data. Add `data-menu-edit` to every data-driven value so the owner can click and edit it directly in the dashboard design: use `restaurant:name`, `restaurant:logoUrl`, `contact:phone`, `category:<id>:labelAr`, `product:<id>:nameAr`, `product:<id>:descriptionAr`, `product:<id>:price`, and `product:<id>:imageUrl`. Listen for `window.addEventListener('menu-data-update', event => renderMenu(event.detail))` so edits update instantly without a page reload. Use image/font URLs only for design assets; the owner will provide product images and logo through the dashboard. Output the entire HTML document, not a React component.
+Attach the restaurant's logo, colors, fonts, and visual references, then paste this prompt:
+
+```text
+Create a polished, responsive restaurant menu as one complete standalone HTML document. I will paste this HTML into my menu-management dashboard. The dashboard renders it inside a sandboxed iframe and lets me click the menu itself to edit its content. Follow the attached restaurant identity and design references closely; keep the layout, typography, colors, spacing, cards, and decorative styling as part of the design.
+
+TECHNICAL OUTPUT
+- Return the complete HTML document, including <!doctype html>, <html>, <head>, <style>, and plain JavaScript. Do not return React, JSX, a screenshot, a mockup, or explanatory text.
+- Use inline CSS and plain JavaScript only. No build tools or external JavaScript packages.
+- The dashboard provides window.MENU_DATA before rendering. Do not invent, hardcode, or bake in restaurant names, menu item names, prices, descriptions, contact details, or menu image URLs. Render those values from window.MENU_DATA.
+- The data shape is: restaurant { id, slug, name, nameEn, logoUrl, primaryColor, secondaryColor, currency, type, contact, statusText }; categories [{ id, labelAr, labelEn, sublabelEn, isActive }]; products [{ id, categoryId, nameAr, nameEn, descriptionAr, descriptionEn, price, originalPrice, calories, imageUrl, isPopular, isSpicy, isVegetarian, badge, isSoldOut }]; offers is a list of products whose badge is "offer".
+- Render an elegant empty state when categories or products are empty. Do not insert demo dishes or sample prices.
+
+DIRECT EDITING IS REQUIRED
+The owner edits text and images by clicking them in the design itself. Add a data-menu-edit attribute to every visible, data-driven text or image element. Put the marker on the actual element the owner clicks, not on a distant wrapper. Use these exact key formats:
+  Restaurant name: data-menu-edit="restaurant:name"
+  English restaurant name: data-menu-edit="restaurant:nameEn"
+  Restaurant logo <img>: data-menu-edit="restaurant:logoUrl"
+  Contact phone: data-menu-edit="contact:phone"
+  Contact WhatsApp: data-menu-edit="contact:whatsapp"
+  Contact address: data-menu-edit="contact:locationNameAr"
+  Category Arabic name: data-menu-edit="category:<category-id>:labelAr"
+  Category English name: data-menu-edit="category:<category-id>:labelEn"
+  Product Arabic name: data-menu-edit="product:<product-id>:nameAr"
+  Product English name: data-menu-edit="product:<product-id>:nameEn"
+  Product description: data-menu-edit="product:<product-id>:descriptionAr"
+  Product price: data-menu-edit="product:<product-id>:price"
+  Product original price: data-menu-edit="product:<product-id>:originalPrice"
+  Product calories: data-menu-edit="product:<product-id>:calories"
+  Product image <img>: data-menu-edit="product:<product-id>:imageUrl"
+
+For every category and product, use its real id from MENU_DATA in the marker. When creating elements in JavaScript, assign the key dynamically, for example: nameElement.dataset.menuEdit = 'product:' + product.id + ':nameAr'. For an image, put data-menu-edit directly on its <img>. Do not create fake IDs or use array positions. The dashboard recognizes these markers and saves direct edits to the matching restaurant, category, or product field.
+
+LIVE DATA UPDATES
+- Implement a renderMenu(data) function that builds/updates the menu from the supplied data.
+- Call renderMenu(window.MENU_DATA) on initial load.
+- Listen for window.addEventListener('menu-data-update', event => renderMenu(event.detail)). The dashboard sends this event after a direct edit; update the visible menu immediately without reloading the iframe.
+- Preserve the same data-menu-edit keys every time you render so the owner can continue editing after updates.
+- Use DOM APIs and textContent for data values. Do not insert data values with unsafe innerHTML.
+
+Keep navigation, category selection, phone/WhatsApp links, and other menu interactions working. Use image/font URLs only for visual assets that are part of the supplied identity or design; actual restaurant logo and product photos come from MENU_DATA. Return only the full HTML source.
+```
 
 ## Storage and editing
 
