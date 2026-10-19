@@ -96,16 +96,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [isAddMenuModalOpen, setIsAddMenuModalOpen] = useState<boolean>(false);
   const [newMenuName, setNewMenuName] = useState<string>('');
   const [newMenuType, setNewMenuType] = useState<string>('restaurant');
-  const [newMenuThemeConfig, setNewMenuThemeConfig] = useState<string>(
-`{
-  "primaryColor": "#F7E354",
-  "secondaryColor": "#1C1C1E",
-  "layoutStyle": "modern-grid",
-  "fontFamily": "Noto Naskh Arabic",
-  "borderRadius": "24px",
-  "currency": "ر.س"
-}`
-  );
+  const [newMenuThemeConfig, setNewMenuThemeConfig] = useState<string>('');
   const [isSubmittingNewMenu, setIsSubmittingNewMenu] = useState<boolean>(false);
 
   const showToast = (msg: string) => {
@@ -240,8 +231,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           products,
           contact: d.contact || {},
           client: d.client || {},
-          businessInfo: d.businessInfo || '',
-          client: d.client || {},
           businessInfo: d.businessInfo || ''
         });
       });
@@ -283,16 +272,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const handleOpenAddMenuModal = (initialType: string = 'restaurant') => {
     setNewMenuName('');
     setNewMenuType(initialType);
-    setNewMenuThemeConfig(
-`{
-  "primaryColor": "${initialType === 'cafe' ? '#D4A373' : '#F7E354'}",
-  "secondaryColor": "#1C1C1E",
-  "layoutStyle": "modern-grid",
-  "fontFamily": "Noto Naskh Arabic",
-  "borderRadius": "24px",
-  "currency": "ر.س"
-}`
-    );
+    setNewMenuThemeConfig('');
     setIsAddMenuModalOpen(true);
   };
 
@@ -304,13 +284,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       return;
     }
 
-    let parsedConfig: Record<string, any> = {};
-    try {
-      if (newMenuThemeConfig.trim()) {
-        parsedConfig = JSON.parse(newMenuThemeConfig);
-      }
-    } catch (parseErr) {
-      alert('كود التصميم (Theme Config) غير صالح! يرجى التأكد من كتابة كود JSON صحيح ومغلق بالأقواس.');
+    if (!newMenuThemeConfig.trim()) {
+      alert('ألصق كود HTML الكامل الذي صدّرته من Stitch.');
+      return;
+    }
+    if (!/<!doctype\s+html|<html[\s>]/i.test(newMenuThemeConfig)) {
+      alert('ألصق مستند HTML كاملًا من Stitch، وليس JSX أو إعدادات JSON.');
+      return;
+    }
+    if (new Blob([newMenuThemeConfig]).size > 400_000) {
+      alert('حجم كود التصميم يتجاوز الحد الآمن للحفظ. قلّل حجمه أو استضف الصور والخطوط واربطها بروابطها.');
       return;
     }
 
@@ -322,28 +305,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         .replace(/\s+/g, '-')
         .replace(/[^\w\u0621-\u064A-]+/g, '') || `venue-${Date.now()}`;
 
-      const primaryColor = parsedConfig.primaryColor || (newMenuType === 'cafe' ? '#D4A373' : '#F7E354');
-      const secondaryColor = parsedConfig.secondaryColor || '#1C1C1E';
-      const currency = parsedConfig.currency || 'ر.س';
+      const primaryColor = newMenuType === 'cafe' ? '#D4A373' : '#A33900';
+      const secondaryColor = '#FFFFFF';
+      const currency = 'ر.س';
 
       const initialCategories = [
-        { id: 'featured', labelAr: 'المميز والأكثر طلباً', labelEn: 'Featured' },
         { id: 'all', labelAr: 'جميع الأصناف', labelEn: 'All Items' }
       ];
-
-      const initialProducts = [
-        {
-          id: `item-${Date.now()}-1`,
-          categoryId: 'featured',
-          nameAr: `صنف ترحيبي في ${newMenuName}`,
-          nameEn: 'Welcome Item',
-          descriptionAr: 'يمكنك تعديل هذا الصنف وإضافة الأسعار والصور مباشرة عبر المحرر المرئي.',
-          price: 25,
-          imageUrl: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=500&auto=format&fit=crop&q=80',
-          badge: 'popular',
-          isPopular: true
-        }
-      ];
+      const initialProducts: RestaurantData['products'] = [];
 
       const newVenueDoc: Partial<RestaurantData> = {
         name: newMenuName.trim(),
@@ -353,12 +322,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         primaryColor,
         secondaryColor,
         currency,
-        layoutStyle: parsedConfig.layoutStyle || 'modern-grid',
-        fontFamily: parsedConfig.fontFamily || 'Noto Naskh Arabic',
-        borderRadius: parsedConfig.borderRadius || '24px',
-        themeConfig: parsedConfig,
+        stitchDesignCode: newMenuThemeConfig,
         isActive: true,
-        logoUrl: parsedConfig.logoUrl || '',
+        logoUrl: '',
         statusText: 'مفتوح للطلبات الآن',
         categories: initialCategories,
         products: initialProducts,
@@ -1343,7 +1309,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <button
               onClick={() => setActiveTab('customers')}
               className={`nav-btn w-full flex items-center justify-between px-4 py-3.5 rounded-2xl text-sm font-bold transition-all cursor-pointer ${activeTab === 'customers' ? 'bg-[#2C2C2E] text-[#F7E354] shadow-sm border border-white/5' : 'text-zinc-400 hover:text-white hover:bg-white/5'}`}
-            ><div className="flex items-center gap-3"><span className="material-symbols-outlined text-[20px]">groups</span><span>إدارة العملاء</span></div><span className="material-symbols-outlined text-[16px]">chevron_left</span></button>
+            >
+              <div className="flex items-center gap-3"><span className="material-symbols-outlined text-[20px]">groups</span><span>إدارة العملاء</span></div>
+              <span className="material-symbols-outlined text-[16px]">chevron_left</span>
+            </button>
 
             <button
               onClick={() => setActiveTab('settings')}
@@ -1949,20 +1918,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </select>
               </div>
 
-              {/* Field 3: Custom Theme Config (JSON Textarea) */}
+              {/* Field 3: Stitch export */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-bold text-zinc-300 flex items-center gap-1.5">
                     <span className="material-symbols-outlined text-[16px] text-[#F7E354]">code</span>
-                    كود التصميم المخصص (Theme Config JSON):
+                    كود تصميم Stitch (HTML):
                   </label>
-                  <span className="text-[10px] text-[#F7E354] font-mono">قابلة للتوسيع</span>
+                  <span className="text-[10px] text-[#F7E354] font-mono">حتى 400 كيلوبايت</span>
                 </div>
                 <p className="text-[11px] text-zinc-400">
-                  حدد الألوان، الخط، التخطيط وحواف البطاقات بصيغة JSON خاصة بهذه المنشأة:
+                  الصق ملف HTML الذي صدّرته من Stitch. يجب أن يستخدم <code dir="ltr">window.MENU_DATA</code> لعرض الاسم والشعار والأقسام والأصناف والأسعار والصور والعروض التي تديرها من المحرر.
                 </p>
                 <textarea
-                  rows={7}
+                  rows={10}
+                  required
                   value={newMenuThemeConfig}
                   onChange={(e) => setNewMenuThemeConfig(e.target.value)}
                   dir="ltr"
