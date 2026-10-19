@@ -48,17 +48,17 @@ For text, put the marker on the element that displays the data. For images, put 
 Attach the restaurant's logo, colors, fonts, and visual references, then paste this prompt:
 
 ```text
-Create a polished, responsive restaurant menu as one complete standalone HTML document. I will paste this HTML into my menu-management dashboard. The dashboard renders it inside a sandboxed iframe and lets me click the menu itself to edit its content. Follow the attached restaurant identity and design references closely; keep the layout, typography, colors, spacing, cards, and decorative styling as part of the design.
+Create the visual template for a polished, responsive restaurant menu as one complete standalone HTML document. Stitch's job is only to create the design and connect its visible content elements to the data fields described below. I will paste this HTML into my menu-management dashboard; I will enter and manage the real restaurant details, categories, dishes, prices, descriptions, and photos there. The dashboard renders the design in an iframe and provides the editing behavior. Do not build an admin/editor interface into the menu design. Follow the attached restaurant identity and design references closely; keep the layout, typography, colors, spacing, cards, and decorative styling as part of the design.
 
 TECHNICAL OUTPUT
 - Return the complete HTML document, including <!doctype html>, <html>, <head>, <style>, and plain JavaScript. Do not return React, JSX, a screenshot, a mockup, or explanatory text.
 - Use inline CSS and plain JavaScript only. No build tools or external JavaScript packages.
-- The dashboard provides window.MENU_DATA before rendering. Do not invent, hardcode, or bake in restaurant names, menu item names, prices, descriptions, contact details, or menu image URLs. Render those values from window.MENU_DATA.
+- The dashboard provides window.MENU_DATA before rendering. Do not invent, hardcode, or bake in restaurant names, menu item names, prices, descriptions, contact details, or menu image URLs. Render those values from window.MENU_DATA. Do not fill the template with sample business content; I will add the actual content in the dashboard.
 - The data shape is: restaurant { id, slug, name, nameEn, logoUrl, primaryColor, secondaryColor, currency, type, contact, statusText }; categories [{ id, labelAr, labelEn, sublabelEn, isActive }]; products [{ id, categoryId, nameAr, nameEn, descriptionAr, descriptionEn, price, originalPrice, calories, imageUrl, isPopular, isSpicy, isVegetarian, badge, isSoldOut }]; offers is a list of products whose badge is "offer".
 - Render an elegant empty state when categories or products are empty. Do not insert demo dishes or sample prices.
 
 DIRECT EDITING IS REQUIRED
-The owner edits text and images by clicking them in the design itself. Add a data-menu-edit attribute to every visible, data-driven text or image element. Put the marker on the actual element the owner clicks, not on a distant wrapper. Use these exact key formats:
+The dashboard (not Stitch) handles editing. The owner edits text and images by clicking them in the design itself. Add a data-menu-edit attribute to every visible, data-driven text or image element so the dashboard can connect each click to its field. Put the marker on the actual element the owner clicks, not on a distant wrapper. Use these exact key formats:
   Restaurant name: data-menu-edit="restaurant:name"
   English restaurant name: data-menu-edit="restaurant:nameEn"
   Restaurant logo <img>: data-menu-edit="restaurant:logoUrl"
