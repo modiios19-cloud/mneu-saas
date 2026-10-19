@@ -218,6 +218,14 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
       alert('يرجى إدخال معرّف الرابط (Slug)');
       return;
     }
+    if (new Blob([draft.stitchDesignCode || '']).size > 400_000) {
+      alert('حجم تصميم Stitch يتجاوز 400 كيلوبايت. استخدم روابط مستضافة للصور والخطوط بدل تضمينها داخل الكود.');
+      return;
+    }
+    if (draft.stitchDesignCode?.trim() && !/<!doctype\s+html|<html[\s>]/i.test(draft.stitchDesignCode)) {
+      alert('ألصق مستند HTML كاملًا من Stitch، وليس JSX أو إعدادات JSON.');
+      return;
+    }
 
     setSaving(true);
     try {
@@ -245,6 +253,7 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
         items: draft.products.map((p) => ({
           name: p.nameAr,
           price: p.price,
+          originalPrice: p.originalPrice || null,
           calories: p.calories,
           description: p.descriptionAr,
           category: p.categoryId,
@@ -255,6 +264,7 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
           isSpicy: p.isSpicy || false
         })),
         contact: draft.contact,
+        stitchDesignCode: draft.stitchDesignCode || '',
         updatedAt: new Date().toISOString()
       };
 
@@ -425,6 +435,21 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
 
 
       {/* WORKSPACE CANVAS */}
+      <details className="z-30 bg-zinc-950 text-white border-b border-zinc-800 px-4 py-3">
+          <summary className="cursor-pointer text-xs font-bold text-amber-300">إضافة / استبدال تصميم Stitch</summary>
+          <div className="max-w-5xl mx-auto pt-3 space-y-2">
+            <p className="text-[11px] text-zinc-400">الصق نسخة HTML جديدة من Stitch ثم احفظ. يجب أن يقرأ التصميم بيانات المنيو من <code dir="ltr">window.MENU_DATA</code>.</p>
+            <textarea
+              value={draft.stitchDesignCode || ''}
+              onChange={(e) => updateField('stitchDesignCode', e.target.value)}
+              rows={8}
+              dir="ltr"
+              className="w-full rounded-xl border border-zinc-700 bg-zinc-900 p-3 font-mono text-xs text-amber-100 focus:outline-none focus:border-amber-400"
+              aria-label="كود تصميم Stitch"
+            />
+            <div className="text-left text-[10px] text-zinc-500">{new Blob([draft.stitchDesignCode || '']).size.toLocaleString()} / 400,000 بايت</div>
+          </div>
+      </details>
       <div className="flex-1 overflow-y-auto no-scrollbar p-2 sm:p-6 flex justify-center items-start bg-zinc-200/60">
         <div
           className={`w-full bg-white transition-all duration-300 shadow-2xl relative ${
@@ -648,6 +673,18 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
                                 {draft.currency || 'ر.س'}
                               </span>
                             </div>
+                          </div>
+                          <div className="flex justify-end items-center gap-1 text-[9px] text-zinc-400">
+                            <span>السعر قبل الخصم</span>
+                            <input
+                              type="number"
+                              min="0"
+                              value={item.originalPrice ?? ''}
+                              onChange={(e) => handleUpdateItem(item.id, { originalPrice: e.target.value ? Number(e.target.value) : undefined, badge: e.target.value ? 'offer' : item.badge })}
+                              placeholder="اختياري"
+                              className="w-14 border-b border-dashed border-zinc-300 bg-transparent text-right font-en focus:outline-none focus:border-[#A33900]"
+                              aria-label={`السعر قبل الخصم لصنف ${item.nameAr}`}
+                            />
                           </div>
 
                           {/* Row 2: Description */}
