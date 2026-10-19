@@ -23,11 +23,29 @@ Before the design HTML runs, the public menu defines `window.MENU_DATA` with thi
 }
 ```
 
-The design must render the current `window.MENU_DATA` values, including empty category/product arrays. Do not bake restaurant-specific text, prices, image URLs, or logo into the markup. Those belong to the dashboard content editor. Contact links are available under `restaurant.contact` (phone, whatsapp, maps, instagram, tiktok, locationNameAr, workingHoursAr and English variants). The admin preview sends changes through a `menu-data-update` event whose `detail` is the latest menu data; listen for that event and re-render without reloading the page so edits show live beside the editor.
+The design must render the current `window.MENU_DATA` values, including empty category/product arrays. Do not bake restaurant-specific text, prices, image URLs, or logo into the markup. Contact links are available under `restaurant.contact` (phone, whatsapp, maps, instagram, tiktok, locationNameAr, workingHoursAr and English variants). Listen for `menu-data-update` and re-render without reloading. In the dashboard, the Stitch design itself is the editor: the owner clicks a marked text or image in the design and edits it in place.
+
+## Direct editing markers
+
+Add `data-menu-edit` to each text or image element that should be editable. Use these keys:
+
+| Element | Key |
+| --- | --- |
+| Restaurant name | `restaurant:name` |
+| Restaurant English name | `restaurant:nameEn` |
+| Logo image | `restaurant:logoUrl` |
+| Contact field, such as phone | `contact:phone` |
+| Category label | `category:<category-id>:labelAr` |
+| Product name | `product:<product-id>:nameAr` |
+| Product description | `product:<product-id>:descriptionAr` |
+| Product price | `product:<product-id>:price` |
+| Product image | `product:<product-id>:imageUrl` |
+
+For text, put the marker on the element that displays the data. For images, put it directly on the `<img>`. The dashboard enables in-place editing in the iframe and saves edits into the corresponding menu data field. Continue rendering values from `window.MENU_DATA`, and listen for `menu-data-update` to reflect edits immediately.
 
 ## Prompt to use in Stitch
 
-> Build this restaurant menu as a complete standalone responsive HTML document with inline CSS and plain JavaScript. Do not use React, JSX, build tools, or external JavaScript packages. The page runs in a sandboxed iframe and receives all editable content through `window.MENU_DATA` before its script runs. Render the restaurant logo/name/contact, category navigation, product cards, prices, descriptions, images, sold-out state, popular/new/offer badges, and offers from that object. Never hardcode restaurant-specific content. Render safely with DOM APIs and `textContent`; treat all menu values as data. Re-render from the supplied object on page load, and listen for `window.addEventListener('menu-data-update', event => renderMenu(event.detail))` so admin edits update the preview instantly without a page reload. Use image/font URLs only for visual assets that are part of the design; the owner will provide product images and logo through the dashboard. Output the entire HTML document, not a React component.
+> Build this restaurant menu as a complete standalone responsive HTML document with inline CSS and plain JavaScript. Do not use React, JSX, build tools, or external JavaScript packages. The page runs in a sandboxed iframe and receives all editable content through `window.MENU_DATA` before its script runs. Render the restaurant logo/name/contact, category navigation, product cards, prices, descriptions, images, sold-out state, popular/new/offer badges, and offers from that object. Never hardcode restaurant-specific content. Render safely with DOM APIs and `textContent`; treat all menu values as data. Add `data-menu-edit` to every data-driven value so the owner can click and edit it directly in the dashboard design: use `restaurant:name`, `restaurant:logoUrl`, `contact:phone`, `category:<id>:labelAr`, `product:<id>:nameAr`, `product:<id>:descriptionAr`, `product:<id>:price`, and `product:<id>:imageUrl`. Listen for `window.addEventListener('menu-data-update', event => renderMenu(event.detail))` so edits update instantly without a page reload. Use image/font URLs only for design assets; the owner will provide product images and logo through the dashboard. Output the entire HTML document, not a React component.
 
 ## Storage and editing
 
