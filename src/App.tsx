@@ -14,6 +14,7 @@ import { ShieldCheck, AlertCircle } from 'lucide-react';
 import { auth } from './lib/firebase';
 import { AdminLogin } from './components/AdminLogin';
 import { PublicReport } from './components/PublicReport';
+import { buildStitchDocument } from './lib/stitchDesign';
 
 // Client-side convenience only; Firestore rules enforce this UID server-side.
 const ADMIN_UID = 'VZMngh2pukhR8r2RoZpNIopt4R82';
@@ -30,14 +31,6 @@ function getInitialView(): 'client' | 'admin' {
   if (typeof window === 'undefined') return 'client';
   const params = new URLSearchParams(window.location.search);
   return params.get('admin') === 'true' || params.get('view') === 'admin' ? 'admin' : 'client';
-}
-
-function buildStitchDocument(source: string, data: Record<string, unknown>): string {
-  // Keep imported design code isolated from the dashboard's origin and Firebase session.
-  const safeData = JSON.stringify(data).replace(/</g, '\\u003c');
-  const bridge = `<script>window.MENU_DATA=${safeData};</script>`;
-  const head = /<head[^>]*>/i;
-  return head.test(source) ? source.replace(head, (match) => `${match}${bridge}`) : `${bridge}${source}`;
 }
 
 export default function App() {
