@@ -1928,7 +1928,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <span className="text-[10px] text-[#F7E354] font-mono">حتى 400 كيلوبايت</span>
                 </div>
                 <p className="text-[11px] text-zinc-400">
-                  الصق ملف HTML الذي صدّرته من Stitch. يجب أن يستخدم <code dir="ltr">window.MENU_DATA</code> لعرض الاسم والشعار والأقسام والأصناف والأسعار والصور والعروض التي تديرها من المحرر.
+                  الصق ملف HTML الذي صدّرته من Stitch. يجب أن يستخدم <code dir="ltr">window.MENU_DATA</code> ويستمع إلى <code dir="ltr">menu-data-update</code> حتى تعرض المعاينة المباشرة تعديلات الاسم والشعار والأقسام والأصناف والأسعار والصور والعروض.
                 </p>
                 <textarea
                   rows={10}
