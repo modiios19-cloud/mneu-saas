@@ -84,11 +84,11 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({
             <h3 className="text-sm font-bold text-[#111111] leading-snug">
               {title}
             </h3>
-            <span
-              className="text-sm font-extrabold font-en whitespace-nowrap"
-              style={{ color: primaryColor }}
-            >
-              {item.price} {currency}
+            <span className="flex flex-col items-end text-sm font-extrabold font-en whitespace-nowrap" style={{ color: primaryColor }}>
+              {item.originalPrice && item.originalPrice > item.price && (
+                <span className="text-[10px] font-medium text-zinc-400 line-through">{item.originalPrice} {currency}</span>
+              )}
+              <span>{item.price} {currency}</span>
             </span>
           </div>
 
