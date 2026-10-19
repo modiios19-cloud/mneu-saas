@@ -67,6 +67,7 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
   const [editingImageTarget, setEditingImageTarget] = useState<{
     type: 'logo' | 'item';
     itemId?: string;
+    bindingKey?: string;
     currentUrl: string;
   } | null>(null);
   const [imageUrlInput, setImageUrlInput] = useState('');
@@ -101,6 +102,59 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
   useEffect(() => {
     stitchPreviewRef.current?.contentWindow?.postMessage({ type: 'MENU_DATA_UPDATE', payload: stitchMenuData }, '*');
   }, [stitchMenuData]);
+
+  const applyInlineEdit = (key: string, value: string) => {
+    const [kind, id, field] = key.split(':');
+    if (kind === 'restaurant' && id) {
+      const restaurantFields = ['name', 'nameEn', 'logoUrl', 'primaryColor', 'secondaryColor', 'statusText'];
+      if (restaurantFields.includes(id)) {
+        setDraft((prev) => ({ ...prev, [id]: value } as RestaurantData));
+      }
+      return;
+    }
+    if (kind === 'contact' && id) {
+      const contactFields = ['phone', 'whatsapp', 'maps', 'instagram', 'tiktok', 'locationNameAr', 'workingHoursAr'];
+      if (contactFields.includes(id)) {
+        updateContact(id as keyof typeof draft.contact, value);
+      }
+      return;
+    }
+    if (kind === 'category' && id && field) {
+      const allowed = ['labelAr', 'labelEn', 'sublabelEn'];
+      if (!allowed.includes(field)) return;
+      setDraft((prev) => ({
+        ...prev,
+        categories: prev.categories.map((category) => category.id === id ? { ...category, [field]: value } : category)
+      }));
+      return;
+    }
+    if (kind === 'product' && id && field) {
+      const allowed = ['nameAr', 'nameEn', 'descriptionAr', 'descriptionEn', 'price', 'originalPrice', 'calories', 'imageUrl'];
+      if (!allowed.includes(field)) return;
+      const nextValue = ['price', 'originalPrice', 'calories'].includes(field) ? Number(value.replace(/[^0-9.]/g, '')) || 0 : value;
+      setDraft((prev) => ({
+        ...prev,
+        products: prev.products.map((product) => product.id === id ? { ...product, [field]: nextValue } : product)
+      }));
+    }
+  };
+
+  useEffect(() => {
+    const handleInlineMessage = (event: MessageEvent) => {
+      if (event.source !== stitchPreviewRef.current?.contentWindow) return;
+      const message = event.data;
+      if (message?.type === 'MENU_INLINE_TEXT_EDIT' && typeof message.key === 'string' && typeof message.value === 'string') {
+        applyInlineEdit(message.key, message.value);
+        showToast('تم تحديث المحتوى داخل التصميم');
+      }
+      if (message?.type === 'MENU_INLINE_IMAGE_EDIT' && typeof message.key === 'string') {
+        setEditingImageTarget({ type: 'item', bindingKey: message.key, currentUrl: String(message.value || '') });
+        setImageUrlInput(String(message.value || ''));
+      }
+    };
+    window.addEventListener('message', handleInlineMessage);
+    return () => window.removeEventListener('message', handleInlineMessage);
+  }, [draft.contact]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -230,7 +284,9 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
 
   const saveImageUrl = () => {
     if (!editingImageTarget) return;
-    if (editingImageTarget.type === 'logo') {
+    if (editingImageTarget.bindingKey) {
+      applyInlineEdit(editingImageTarget.bindingKey, imageUrlInput.trim());
+    } else if (editingImageTarget.type === 'logo') {
       updateField('logoUrl', imageUrlInput.trim());
     } else if (editingImageTarget.type === 'item' && editingImageTarget.itemId) {
       handleUpdateItem(editingImageTarget.itemId, { imageUrl: imageUrlInput.trim() });
@@ -481,9 +537,9 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
             <div className="text-left text-[10px] text-zinc-500">{new Blob([draft.stitchDesignCode || '']).size.toLocaleString()} / 400,000 بايت</div>
           </div>
       </details>
-      <div className={`flex-1 min-h-0 overflow-y-auto no-scrollbar p-2 sm:p-4 xl:p-6 bg-zinc-200/60 ${draft.stitchDesignCode ? 'grid grid-cols-1 xl:grid-cols-2 gap-4 xl:gap-6 items-start' : 'flex justify-center items-start'}`}>
+      <div className={`flex-1 min-h-0 overflow-y-auto no-scrollbar p-2 sm:p-4 xl:p-6 bg-zinc-200/60 flex justify-center items-start`}>
         <div
-          className={`w-full bg-white transition-all duration-300 shadow-2xl relative justify-self-center ${
+          className={`${draft.stitchDesignCode ? 'hidden' : 'block'} w-full bg-white transition-all duration-300 shadow-2xl relative justify-self-center ${
             isMobileFrame
               ? 'max-w-md rounded-[40px] my-2 border-[8px] border-zinc-900 overflow-hidden min-h-[820px]'
               : 'max-w-2xl rounded-3xl min-h-[800px]'
@@ -812,20 +868,23 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
           </div>
         </div>
         {draft.stitchDesignCode && (
-          <section className="w-full max-w-[520px] xl:max-w-none justify-self-center xl:sticky xl:top-2 space-y-2">
+          <section className={`w-full ${isMobileFrame ? 'max-w-[430px]' : 'max-w-none'} justify-self-center space-y-2`}>
             <div className="flex items-center justify-between px-2 text-xs font-bold text-zinc-700">
-              <span className="flex items-center gap-2"><Eye className="w-4 h-4" /> معاينة تصميم Stitch الحية</span>
-              <span className="text-[10px] text-zinc-500">تتحدث مع تعديلات المحتوى</span>
+              <span className="flex items-center gap-2"><Eye className="w-4 h-4" /> محرر التصميم المباشر</span>
+              <span className="text-[10px] text-zinc-500">انقر على النص أو الصورة داخل المنيو لتعديلها</span>
             </div>
-            <div className="h-[calc(100vh-150px)] min-h-[620px] overflow-hidden rounded-[28px] border-[7px] border-zinc-900 bg-white shadow-2xl">
+            <div className={`h-[calc(100vh-150px)] min-h-[620px] overflow-hidden bg-white shadow-2xl ${isMobileFrame ? 'rounded-[28px] border-[7px] border-zinc-900' : 'rounded-xl border border-zinc-300'}`}>
               <iframe
                 ref={stitchPreviewRef}
-                title={`معاينة تصميم ${draft.name}`}
+                title={`محرر تصميم ${draft.name}`}
                 className="h-full w-full border-0 bg-white"
                 sandbox="allow-scripts allow-forms allow-popups"
                 referrerPolicy="strict-origin-when-cross-origin"
                 srcDoc={stitchPreviewDocument}
-                onLoad={() => stitchPreviewRef.current?.contentWindow?.postMessage({ type: 'MENU_DATA_UPDATE', payload: stitchMenuData }, '*')}
+                onLoad={() => {
+                  stitchPreviewRef.current?.contentWindow?.postMessage({ type: 'MENU_DATA_UPDATE', payload: stitchMenuData }, '*');
+                  stitchPreviewRef.current?.contentWindow?.postMessage({ type: 'MENU_EDITOR_MODE', enabled: true }, '*');
+                }}
               />
             </div>
           </section>
