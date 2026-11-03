@@ -10,7 +10,7 @@ import { LoadingState } from './components/LoadingState';
 import { ErrorState } from './components/ErrorState';
 import { AdminDashboard } from './components/admin/AdminDashboard';
 import { Category, MenuItem } from './types/restaurant';
-import { ShieldCheck, AlertCircle } from 'lucide-react';
+import { ShieldCheck } from 'lucide-react';
 import { auth } from './lib/firebase';
 import { AdminLogin } from './components/AdminLogin';
 import { PublicReport } from './components/PublicReport';
@@ -243,11 +243,6 @@ export default function App() {
             {restaurant.slug}
           </span>
 
-          {restaurant.isActive === false && (
-            <span className="text-[10px] font-bold text-black bg-amber-400 px-2 py-0.5 rounded">
-              معطل مؤقتاً
-            </span>
-          )}
         </div>
 
         {/* Action: Open Admin Dashboard & Seed & Demo Switchers */}
@@ -288,14 +283,6 @@ export default function App() {
           </button>
         </div>
       </div>
-
-      {/* Notice if restaurant is inactive */}
-      {restaurant.isActive === false && (
-        <div className="bg-red-500 text-white text-xs font-bold py-2 px-4 text-center flex items-center justify-center gap-2">
-          <AlertCircle className="w-4 h-4" />
-          <span>تنبيه: هذا المطعم غير نشط حالياً في لوحة الإدارة</span>
-        </div>
-      )}
 
       {/* Header with Dynamic Restaurant Name, Logo & Categories */}
       <Header
