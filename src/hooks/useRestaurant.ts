@@ -113,7 +113,8 @@ function normalizeRestaurantData(docId: string, rawData: any): RestaurantData {
   }
 
   // معالجة المنتجات (items أو products)
-  const rawItems = rawData.items || rawData.products || [];
+  // `products` is the canonical shape. `items` is retained only for legacy records.
+  const rawItems = rawData.products ?? rawData.items ?? [];
   const products: MenuItem[] = rawItems.map((item: any, idx: number) => ({
     id: item.id || `item-${idx}`,
     categoryId: item.category || item.categoryId || categories[0]?.id || 'all',
@@ -139,6 +140,9 @@ function normalizeRestaurantData(docId: string, rawData: any): RestaurantData {
     nameEn: rawData.nameEn || rawData.name,
     logoUrl,
     stitchDesignCode: typeof rawData.stitchDesignCode === 'string' ? rawData.stitchDesignCode : '',
+    isActive: rawData.isActive !== false,
+    type: rawData.type || 'restaurant',
+    coverUrl: rawData.coverUrl || '',
     updatedAt: rawData.updatedAt || '',
     primaryColor: rawData.primaryColor || '#A33900',
     secondaryColor: rawData.secondaryColor || '#FFEDE5',
