@@ -125,6 +125,10 @@ function ReportComposer({ restaurant, onClose, onToast, onPreview }: { restauran
     status: includeStatus ? { active: restaurant.isActive !== false, generatedAt: new Date().toISOString() } : undefined
   };
   const send = async () => {
+    // Metrics currently come from buildReportAnalytics(), a deterministic demo generator.
+    // Do not publish fabricated traffic reports as real customer analytics.
+    onToast('إرسال التقارير متوقف مؤقتًا: أرقام الزيارات تجريبية. اربط التتبع الحقيقي أولًا.');
+    return;
     if (!db) { onToast('اتصال قاعدة البيانات غير متاح'); return; }
     if (!customerPhone) { onToast('أضف رقم العميل أولًا من تعديل البيانات'); return; }
     if (!startDate || !endDate || startDate > endDate) { onToast('تحقق من تاريخ بداية ونهاية الفترة'); return; }
