@@ -159,6 +159,17 @@ export default function App() {
     );
   }
 
+  if (restaurant.isActive === false) {
+    return (
+      <main dir={lang === 'ar' ? 'rtl' : 'ltr'} className="flex min-h-screen items-center justify-center bg-zinc-950 p-6 text-white">
+        <section className="w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-900 p-8 text-center">
+          <h1 className="text-xl font-bold">{isAr ? 'القائمة غير متاحة حاليًا' : 'Menu temporarily unavailable'}</h1>
+          <p className="mt-3 text-sm text-zinc-400">{isAr ? 'يرجى التواصل مع المطعم أو المقهى للاستفسار.' : 'Please contact the venue for details.'}</p>
+        </section>
+      </main>
+    );
+  }
+
   const primaryColor = restaurant.primaryColor || '#A33900';
   const currency = restaurant.currency || (isAr ? 'ر.س' : 'SAR');
 
