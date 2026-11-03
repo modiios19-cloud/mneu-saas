@@ -305,6 +305,11 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
       alert('يرجى إدخال معرّف الرابط (Slug)');
       return;
     }
+    // Document IDs are used as public URLs; renaming requires a separate, safe migration.
+    if (draft.slug.trim().toLowerCase() !== initialRestaurant.id) {
+      alert('تغيير معرّف الرابط غير مدعوم من المحرر حاليًا حتى لا تنشأ نسخة جديدة أو تضيع البيانات. يمكنك تعديل اسم المطعم بحرية.');
+      return;
+    }
     if (new Blob([draft.stitchDesignCode || '']).size > 400_000) {
       alert('حجم تصميم Stitch يتجاوز 400 كيلوبايت. استخدم روابط مستضافة للصور والخطوط بدل تضمينها داخل الكود.');
       return;
@@ -355,11 +360,11 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
         updatedAt: new Date().toISOString()
       };
 
-      const docRef = doc(db, 'restaurants', cleanSlug);
+      const docRef = doc(db, 'restaurants', initialRestaurant.id);
       await setDoc(docRef, payload, { merge: true });
 
       showToast('🎉 تم حفظ ونشر جميع التعديلات المرئية إلى Firebase بنجاح!');
-      onSaved({ ...draft, slug: cleanSlug });
+      onSaved({ ...draft, id: initialRestaurant.id, slug: cleanSlug });
     } catch (err: any) {
       console.error('Error publishing to Firestore:', err);
       alert(`حدث خطأ أثناء النشر إلى Firebase: ${err?.message || err}`);
