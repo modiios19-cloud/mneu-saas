@@ -1,3 +1,20 @@
+test('the sample cafe price can be clicked, edited and restored after reload', async ({ page }) => {
+  await page.goto('/?admin=true');
+  await page.getByRole('button', { name: 'فتح المحرر المرئي', exact: false }).click();
+  const frame = page.frameLocator('iframe[title^="محرر تصميم"]');
+  const price = frame.locator('[data-menu-edit="product:coffee:price"]');
+  await expect(price).toHaveText('15');
+  await price.click();
+  await expect(price).toHaveAttribute('contenteditable', 'true');
+  await price.fill('20');
+  await price.press('Tab');
+  await expect(price).toHaveText('20');
+  await expect(page.getByText('المسودة محفوظة تلقائيًا')).toBeVisible();
+  await page.reload();
+  await page.getByRole('button', { name: 'فتح المحرر المرئي', exact: false }).click();
+  await expect(frame.locator('[data-menu-edit="product:coffee:price"]')).toHaveText('20');
+});
+
 import {test,expect} from '@playwright/test';
 test('dashboard autosaves, reopens drafts, versions, independent previews and editable WhatsApp',async({page})=>{
  test.setTimeout(60000);
