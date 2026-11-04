@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { doc, setDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, serverTimestamp, setDoc, Timestamp, writeBatch } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { buildStitchDocument } from '../../lib/stitchDesign';
+import { makePreviewUrl, toEditableMenu, toPreviewMenu, whatsappLink, whatsappPreviewMessage } from '../../lib/menuDrafts';
 import { RestaurantData, Category, MenuItem, ItemBadge } from '../../types/restaurant';
 import {
   Save,
@@ -29,6 +30,7 @@ import {
 
 interface VisualMenuEditorProps {
   initialRestaurant: RestaurantData;
+  publicBaseUrl: string;
   onClose: () => void;
   onSaved: (updatedRestaurant: RestaurantData) => void;
   availableTypes?: { id: string; labelAr: string }[];
@@ -36,6 +38,7 @@ interface VisualMenuEditorProps {
 
 export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
   initialRestaurant,
+  publicBaseUrl,
   onClose,
   onSaved,
   availableTypes = [
@@ -60,6 +63,14 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [isMobileFrame, setIsMobileFrame] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
+  const [draftReady, setDraftReady] = useState(false);
+  const [draftSaveStatus, setDraftSaveStatus] = useState<'loading' | 'saving' | 'saved' | 'error'>('loading');
+  const [shareBusy, setShareBusy] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState('');
+  const [previewPhone, setPreviewPhone] = useState(initialRestaurant.client?.phone || '');
+  const [previewMessage, setPreviewMessage] = useState('');
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [menuVersions, setMenuVersions] = useState<{ id: string; savedAt: string; menu: Partial<RestaurantData> }[]>([]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const stitchPreviewRef = useRef<HTMLIFrameElement>(null);
 
