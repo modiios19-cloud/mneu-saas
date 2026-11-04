@@ -10,10 +10,11 @@ import { LoadingState } from './components/LoadingState';
 import { ErrorState } from './components/ErrorState';
 import { AdminDashboard } from './components/admin/AdminDashboard';
 import { Category, MenuItem } from './types/restaurant';
-import { ShieldCheck, AlertCircle } from 'lucide-react';
+import { ShieldCheck } from 'lucide-react';
 import { auth } from './lib/firebase';
 import { AdminLogin } from './components/AdminLogin';
 import { PublicReport } from './components/PublicReport';
+import { MenuPreview } from './components/MenuPreview';
 import { buildStitchDocument } from './lib/stitchDesign';
 
 // Client-side convenience only; Firestore rules enforce this UID server-side.
@@ -43,6 +44,7 @@ export default function App() {
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const reportToken = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('report');
+  const previewToken = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('preview');
 
   // Hook to fetch restaurant data dynamically from Firebase Firestore
   const { data: restaurant, loading, error, reload } = useRestaurant(slug);
@@ -111,6 +113,7 @@ export default function App() {
     }
   }, [lang, restaurant, isAr, viewMode]);
 
+  if (previewToken) return <MenuPreview token={previewToken} />;
   if (reportToken) return <PublicReport token={reportToken} />;
 
   // If in Admin Dashboard mode, render AdminDashboard
@@ -156,6 +159,17 @@ export default function App() {
         onOpenAdmin={() => handleToggleView('admin')}
         lang={lang}
       />
+    );
+  }
+
+  if (restaurant.isActive === false) {
+    return (
+      <main dir={lang === 'ar' ? 'rtl' : 'ltr'} className="flex min-h-screen items-center justify-center bg-zinc-950 p-6 text-white">
+        <section className="w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-900 p-8 text-center">
+          <h1 className="text-xl font-bold">{isAr ? 'القائمة غير متاحة حاليًا' : 'Menu temporarily unavailable'}</h1>
+          <p className="mt-3 text-sm text-zinc-400">{isAr ? 'يرجى التواصل مع المطعم أو المقهى للاستفسار.' : 'Please contact the venue for details.'}</p>
+        </section>
+      </main>
     );
   }
 
@@ -232,11 +246,6 @@ export default function App() {
             {restaurant.slug}
           </span>
 
-          {restaurant.isActive === false && (
-            <span className="text-[10px] font-bold text-black bg-amber-400 px-2 py-0.5 rounded">
-              معطل مؤقتاً
-            </span>
-          )}
         </div>
 
         {/* Action: Open Admin Dashboard & Seed & Demo Switchers */}
@@ -277,14 +286,6 @@ export default function App() {
           </button>
         </div>
       </div>
-
-      {/* Notice if restaurant is inactive */}
-      {restaurant.isActive === false && (
-        <div className="bg-red-500 text-white text-xs font-bold py-2 px-4 text-center flex items-center justify-center gap-2">
-          <AlertCircle className="w-4 h-4" />
-          <span>تنبيه: هذا المطعم غير نشط حالياً في لوحة الإدارة</span>
-        </div>
-      )}
 
       {/* Header with Dynamic Restaurant Name, Logo & Categories */}
       <Header

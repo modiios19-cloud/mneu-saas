@@ -115,6 +115,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         setPlatformSettings({
           platformName: !data.platformName || data.platformName === 'WiseMenu' ? 'YCOAI' : data.platformName,
           platformLogoUrl: data.platformLogoUrl || '',
+          publicBaseUrl: data.publicBaseUrl || '',
           allowedVenueTypes: data.allowedVenueTypes || [
             { id: 'restaurant', labelAr: 'مطاعم' },
             { id: 'cafe', labelAr: 'مقاهي' }
@@ -212,6 +213,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           name: d.name || docId,
           nameEn: d.nameEn || d.name,
           logoUrl: d.logoUrl || d.logo || '',
+          coverUrl: d.coverUrl || '',
+          stitchDesignCode: typeof d.stitchDesignCode === 'string' ? d.stitchDesignCode : '',
+          updatedAt: d.updatedAt || '',
           primaryColor: d.primaryColor || '#A33900',
           secondaryColor: d.secondaryColor || '#F4F4F5',
           type: d.type || (docId.includes('cafe') ? 'cafe' : 'restaurant'),
@@ -323,7 +327,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         secondaryColor,
         currency,
         stitchDesignCode: newMenuThemeConfig,
-        isActive: true,
+        // New menus remain unavailable publicly until the owner approves them.
+        isActive: false,
         logoUrl: '',
         statusText: 'مفتوح للطلبات الآن',
         categories: initialCategories,
@@ -331,9 +336,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         contact: {}
       };
 
-      if (db) {
-        await setDoc(doc(db, 'restaurants', generatedSlug), newVenueDoc);
+      if (!db) throw new Error('Firestore connection unavailable');
+      const newVenueRef = doc(db, 'restaurants', generatedSlug);
+      if ((await getDoc(newVenueRef)).exists()) {
+        showToast('يوجد منيو بهذا المعرّف بالفعل. غيّر اسم المنشأة أو المعرّف قبل الإنشاء.');
+        return;
       }
+      await setDoc(newVenueRef, newVenueDoc);
 
       const dailyViews = generateMockTimeData(generatedSlug);
       const createdVenue: RestaurantData = {
@@ -1967,11 +1976,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       {selectedForVisualEdit && (
         <VisualMenuEditor
           initialRestaurant={selectedForVisualEdit}
+          publicBaseUrl={platformSettings.publicBaseUrl || ''}
           onClose={() => setSelectedForVisualEdit(null)}
-          onSaved={async (updated: RestaurantData) => {
-            if (db) {
-              await updateDoc(doc(db, 'restaurants', updated.id), updated);
-            }
+          onSaved={(updated: RestaurantData) => {
+            // The visual editor already persisted the full menu document.
+            // An additional update with the UI snapshot can overwrite design and item data.
             setRestaurants((prev) =>
               prev.map((r) => (r.id === updated.id ? updated : r))
             );

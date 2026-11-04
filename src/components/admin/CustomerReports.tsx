@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { addDoc, collection, doc, serverTimestamp, Timestamp, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc } from 'firebase/firestore';
 import { ArrowUpRight, CalendarDays, FileBarChart2, MapPin, MessageCircle, Pencil, Phone, Search, X } from 'lucide-react';
 import { db } from '../../lib/firebase';
 import { RestaurantData } from '../../types/restaurant';
@@ -112,9 +112,7 @@ function ReportComposer({ restaurant, onClose, onToast, onPreview }: { restauran
   const isDemo = restaurant.id === DEMO_CUSTOMER_ID;
   const [startDate, setStartDate] = useState(initialStart);
   const [endDate, setEndDate] = useState(today);
-  const [customMessage, setCustomMessage] = useState('مرحباً {name}، تقرير نشاط منيو {restaurant} للفترة من {start} إلى {end}: {url}');
   const [includeStatus, setIncludeStatus] = useState(true);
-  const [busy, setBusy] = useState(false);
   const metrics = useMemo(() => buildReportAnalytics(restaurant.id, startDate, endDate), [restaurant.id, startDate, endDate]);
   const customerPhone = restaurant.client?.phone || '';
   const chooseRange = (kind: 'week' | 'month') => { const d = new Date(); if (kind === 'week') d.setDate(d.getDate() - 6); else d.setDate(1); setStartDate(d.toLocaleDateString('en-CA')); setEndDate(today()); };
@@ -124,40 +122,14 @@ function ReportComposer({ restaurant, onClose, onToast, onPreview }: { restauran
     period: { startDate, endDate }, sections: { status: includeStatus }, metrics,
     status: includeStatus ? { active: restaurant.isActive !== false, generatedAt: new Date().toISOString() } : undefined
   };
-  const send = async () => {
-    if (!db) { onToast('اتصال قاعدة البيانات غير متاح'); return; }
-    if (!customerPhone) { onToast('أضف رقم العميل أولًا من تعديل البيانات'); return; }
-    if (!startDate || !endDate || startDate > endDate) { onToast('تحقق من تاريخ بداية ونهاية الفترة'); return; }
-    const whatsappWindow = window.open('', '_blank');
-    if (!whatsappWindow) { onToast('اسمح بفتح النوافذ المنبثقة لإكمال الإرسال'); return; }
-    setBusy(true);
-    try {
-      const ref = await addDoc(collection(db, 'publicReports'), {
-        restaurant: { id: restaurant.id, name: restaurant.name, type: restaurant.type || 'restaurant', logoUrl: restaurant.logoUrl || '', currency: restaurant.currency || 'ر.س' },
-        clientName: restaurant.client?.name || restaurant.name,
-        period: { startDate, endDate }, sections: { status: includeStatus }, metrics,
-        status: reportData.status || null,
-        createdAt: serverTimestamp(), expiresAt: Timestamp.fromDate(new Date(Date.now() + 90 * 24 * 60 * 60 * 1000))
-      });
-      const url = new URL(window.location.href); url.search = ''; url.searchParams.set('report', ref.id);
-      const reportUrl = url.toString();
-      const message = customMessage.replaceAll('{name}', restaurant.client?.name || restaurant.name).replaceAll('{restaurant}', restaurant.name).replaceAll('{start}', startDate).replaceAll('{end}', endDate).replaceAll('{url}', reportUrl);
-      const digits = phoneDigits(customerPhone);
-      if (!digits) throw new Error('رقم العميل غير صالح');
-      whatsappWindow.location.href = `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
-      onToast('تم تجهيز التقرير وفتح محادثة العميل لمراجعة الرسالة وإرسالها'); onClose();
-    } catch (error) { whatsappWindow.close(); console.error(error); onToast('تعذر إنشاء التقرير. تحقق من نشر قواعد Firestore الجديدة.'); }
-    finally { setBusy(false); }
-  };
   return <div className="fixed inset-0 z-[120] grid place-items-center bg-black/75 p-3 sm:p-6" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}><div className="max-h-[92vh] w-full max-w-2xl overflow-auto rounded-3xl border border-white/10 bg-[#1c1c1e] p-5 shadow-2xl sm:p-7">
     <div className="flex items-start justify-between"><div><span className="text-xs font-bold text-[#F7E354]">تقرير العميل · {restaurant.client?.name || restaurant.name}</span><h3 className="mt-1 text-xl font-black">{restaurant.name}</h3></div><button onClick={onClose} className="rounded-lg p-2 text-zinc-400 hover:bg-white/10"><X size={19}/></button></div>
     <div className="mt-5 grid grid-cols-2 gap-3"><label className="text-xs font-bold text-zinc-300">من<input type="date" value={startDate} max={endDate} onChange={e => setStartDate(e.target.value)} className="mt-2 block w-full rounded-xl border border-white/10 bg-[#111] p-3 text-sm text-white"/></label><label className="text-xs font-bold text-zinc-300">إلى<input type="date" value={endDate} min={startDate} max={today()} onChange={e => setEndDate(e.target.value)} className="mt-2 block w-full rounded-xl border border-white/10 bg-[#111] p-3 text-sm text-white"/></label></div>
     <div className="mt-3 flex gap-2"><button onClick={() => chooseRange('week')} className="rounded-lg bg-white/5 px-3 py-2 text-xs">آخر 7 أيام</button><button onClick={() => chooseRange('month')} className="rounded-lg bg-white/5 px-3 py-2 text-xs">هذا الشهر</button><span className="inline-flex items-center gap-1 text-xs text-zinc-500"><CalendarDays size={14}/> أو حدد فترة مخصصة</span></div>
     <div className="mt-5 rounded-2xl border border-[#F7E354]/20 bg-[#F7E354]/[0.05] p-4"><div className="flex items-center justify-between gap-2"><p className="text-sm font-black text-[#F7E354]">إحصاءات الفترة المحددة</p><span className="text-[10px] text-amber-100/70">تجريبية · تُحسب تلقائيًا حسب التاريخ</span></div><div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">{[['ماسحو QR', metrics.qrScans], ['زيارات الرابط', metrics.linkVisits], ['زيارات المشاركة', metrics.shareVisits], ['إجمالي الزيارات', metrics.totalVisits]].map(([label, value]) => <div key={String(label)} className="rounded-xl bg-black/20 p-3"><p className="text-[10px] text-zinc-400">{label}</p><p className="mt-1 font-black text-white">{Number(value).toLocaleString('ar')}</p></div>)}</div><p className="mt-3 text-[11px] leading-5 text-zinc-400">الأرقام نموذجية قبل الإطلاق، وتُعاد حسابها تلقائيًا عند تغيير الفترة. الإيرادات غير معروضة لعدم وجود نظام مبيعات أو طلبات في التطبيق.</p></div>
     <div className="mt-4 space-y-3"><p className="text-xs font-bold text-zinc-300">محتويات التقرير</p><label className="flex gap-2 text-sm"><input type="checkbox" checked={includeStatus} onChange={e => setIncludeStatus(e.target.checked)}/>حالة المنيو وقت إنشاء التقرير</label></div>
-    <label className="mt-5 block text-xs font-bold text-zinc-300">نص رسالة واتساب <span className="font-normal text-zinc-500">(المتغيرات: {'{name}'}, {'{start}'}, {'{end}'}, {'{url}'})</span><textarea rows={3} value={customMessage} onChange={e => setCustomMessage(e.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-[#111] p-3 text-sm leading-6 text-white outline-none focus:border-[#F7E354]"/></label>
     <button onClick={() => onPreview(reportData)} className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 py-3 font-bold text-white"><FileBarChart2 size={18}/>معاينة التقرير كما سيراه العميل</button>
-    {!isDemo && <><button disabled={busy} onClick={send} className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-[#F7E354] py-3 font-black text-zinc-900 disabled:opacity-50"><MessageCircle size={18}/>{busy ? 'جارٍ تجهيز الرابط…' : 'إنشاء التقرير وفتح واتساب'}<ArrowUpRight size={16}/></button><p className="mt-3 text-center text-[11px] leading-5 text-zinc-500">سيُفتح واتساب على رقم العميل؛ راجع الرسالة ثم أرسلها بنفسك.</p></>}
+    {!isDemo && <p className="mt-3 rounded-xl border border-amber-300/30 bg-amber-400/10 p-3 text-center text-xs leading-5 text-amber-200">إرسال التقارير معطّل مؤقتًا لأن بيانات الزيارات تجريبية. يجب إتمام التتبع الحقيقي قبل إرسال تقرير لعميل.</p>}
     {isDemo && <p className="mt-3 text-center text-[11px] leading-5 text-amber-200">هذا عميل افتراضي؛ استخدم المعاينة فقط. لن يُنشأ رابط أو تُفتح محادثة واتساب.</p>}
   </div></div>;
 }

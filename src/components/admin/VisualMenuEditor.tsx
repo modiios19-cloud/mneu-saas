@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { doc, setDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, serverTimestamp, setDoc, Timestamp, writeBatch } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { buildStitchDocument } from '../../lib/stitchDesign';
+import { makePreviewUrl, toEditableMenu, toPreviewMenu, whatsappLink, whatsappPreviewMessage } from '../../lib/menuDrafts';
 import { RestaurantData, Category, MenuItem, ItemBadge } from '../../types/restaurant';
 import {
   Save,
@@ -29,6 +30,7 @@ import {
 
 interface VisualMenuEditorProps {
   initialRestaurant: RestaurantData;
+  publicBaseUrl: string;
   onClose: () => void;
   onSaved: (updatedRestaurant: RestaurantData) => void;
   availableTypes?: { id: string; labelAr: string }[];
@@ -36,6 +38,7 @@ interface VisualMenuEditorProps {
 
 export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
   initialRestaurant,
+  publicBaseUrl,
   onClose,
   onSaved,
   availableTypes = [
@@ -60,6 +63,14 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [isMobileFrame, setIsMobileFrame] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
+  const [draftReady, setDraftReady] = useState(false);
+  const [draftSaveStatus, setDraftSaveStatus] = useState<'loading' | 'saving' | 'saved' | 'error'>('loading');
+  const [shareBusy, setShareBusy] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState('');
+  const [previewPhone, setPreviewPhone] = useState(initialRestaurant.client?.phone || '');
+  const [previewMessage, setPreviewMessage] = useState('');
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [menuVersions, setMenuVersions] = useState<{ id: string; savedAt: string; menu: Partial<RestaurantData> }[]>([]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const stitchPreviewRef = useRef<HTMLIFrameElement>(null);
 
@@ -98,6 +109,146 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
     }) : '',
     [draft.stitchDesignCode]
   );
+
+  // A draft is private to the administrator. Editing it does not affect the live customer menu.
+  useEffect(() => {
+    let alive = true;
+    getDoc(doc(db, 'menuDrafts', initialRestaurant.id))
+      .then((snapshot) => {
+        if (!alive || !snapshot.exists()) return;
+        const savedMenu = snapshot.data().menu as Partial<RestaurantData> | undefined;
+        if (!savedMenu || typeof savedMenu !== 'object') return;
+        setDraft((current) => ({
+          ...current,
+          ...savedMenu,
+          id: initialRestaurant.id,
+          slug: initialRestaurant.slug,
+          client: current.client,
+          businessInfo: current.businessInfo,
+          categories: Array.isArray(savedMenu.categories) ? savedMenu.categories : current.categories,
+          products: Array.isArray(savedMenu.products) ? savedMenu.products : current.products
+        }));
+      })
+      .catch((error) => {
+        console.error('Could not restore menu draft', error);
+        if (alive) setDraftSaveStatus('error');
+      })
+      .finally(() => { if (alive) setDraftReady(true); });
+    return () => { alive = false; };
+  }, [initialRestaurant.id]);
+
+  // Changes are persisted in Firestore automatically after a brief pause.
+  // Publishing remains explicit so an unfinished design never replaces the live menu.
+  useEffect(() => {
+    if (!draftReady) return;
+    if (new Blob([draft.stitchDesignCode || '']).size > 400_000) {
+      setDraftSaveStatus('error');
+      return;
+    }
+    setDraftSaveStatus('saving');
+    let active = true;
+    const timer = setTimeout(async () => {
+      try {
+        await setDoc(doc(db, 'menuDrafts', initialRestaurant.id), {
+          menu: toEditableMenu(draft),
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+        if (active) setDraftSaveStatus('saved');
+      } catch (error) {
+        console.error('Autosave failed', error);
+        if (active) setDraftSaveStatus('error');
+      }
+    }, 1100);
+    return () => { active = false; clearTimeout(timer); };
+  }, [draft, draftReady, initialRestaurant.id]);
+
+  const handleExitEditor = async () => {
+    if (!draftReady) { onClose(); return; }
+    try {
+      await setDoc(doc(db, 'menuDrafts', initialRestaurant.id), {
+        menu: toEditableMenu(draft),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      onClose();
+    } catch (error) {
+      console.error('Could not save draft on exit', error);
+      if (window.confirm('تعذّر حفظ المسودة في Firebase. هل تريد الخروج مع احتمال فقد آخر التعديلات؟')) onClose();
+      else showToast('لم تُحفظ المسودة؛ تحقق من صلاحيات Firestore.');
+    }
+  };
+
+  const handleCreateClientPreview = async () => {
+    if (!draftReady || shareBusy) return;
+    if (!draft.stitchDesignCode?.trim()) {
+      showToast('أضف تصميم HTML من Stitch قبل إنشاء المعاينة.');
+      return;
+    }
+    if (new Blob([draft.stitchDesignCode]).size > 400_000) {
+      showToast('حجم التصميم يتجاوز 400,000 بايت.');
+      return;
+    }
+    setShareBusy(true);
+    try {
+      const previewRef = doc(collection(db, 'menuPreviews'));
+      const url = makePreviewUrl(publicBaseUrl, previewRef.id);
+      await setDoc(previewRef, {
+        restaurantId: initialRestaurant.id,
+        menu: toPreviewMenu(draft),
+        designHtml: draft.stitchDesignCode,
+        status: 'active',
+        createdAt: serverTimestamp(),
+        expiresAt: Timestamp.fromMillis(Date.now() + 7 * 86400000)
+      });
+      setPreviewUrl(url);
+      setPreviewPhone(initialRestaurant.client?.phone || '');
+      setPreviewMessage(whatsappPreviewMessage(draft.name, url, initialRestaurant.client?.name));
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'تعذر إنشاء رابط المعاينة.');
+    } finally {
+      setShareBusy(false);
+    }
+  };
+
+  const handleOpenWhatsApp = () => {
+    try {
+      const url = whatsappLink(previewPhone, previewMessage);
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'تحقق من رقم واتساب العميل.');
+    }
+  };
+
+  const handleLoadHistory = async () => {
+    try {
+      const snapshots = await getDocs(collection(db, 'menuVersions', initialRestaurant.id, 'versions'));
+      const versions = snapshots.docs.map((snap) => {
+        const record = snap.data();
+        const date = record.archivedAt instanceof Timestamp ? record.archivedAt.toDate().toLocaleString('ar') : 'تاريخ غير متاح';
+        return { id: snap.id, savedAt: date, menu: (record.menu || {}) as Partial<RestaurantData>, time: record.archivedAt instanceof Timestamp ? record.archivedAt.toMillis() : 0 };
+      }).sort((a, b) => b.time - a.time).slice(0, 20);
+      setMenuVersions(versions);
+      setHistoryOpen(true);
+    } catch (error) {
+      console.error('Could not load menu versions', error);
+      showToast('تعذر تحميل الإصدارات القديمة.');
+    }
+  };
+
+  const handleRestoreVersion = (version: Partial<RestaurantData>) => {
+    setDraft((current) => ({
+      ...current,
+      ...version,
+      id: initialRestaurant.id,
+      slug: initialRestaurant.slug,
+      client: current.client,
+      businessInfo: current.businessInfo,
+      contact: version.contact || current.contact,
+      categories: version.categories || current.categories,
+      products: version.products || current.products
+    }));
+    setHistoryOpen(false);
+    showToast('استُعيدت نسخة سابقة كمسودة؛ راجعها قبل اعتمادها ونشرها.');
+  };
 
   useEffect(() => {
     stitchPreviewRef.current?.contentWindow?.postMessage({ type: 'MENU_DATA_UPDATE', payload: stitchMenuData }, '*');
@@ -305,6 +456,11 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
       alert('يرجى إدخال معرّف الرابط (Slug)');
       return;
     }
+    // Document IDs are used as public URLs; renaming requires a separate, safe migration.
+    if (draft.slug.trim().toLowerCase() !== initialRestaurant.id) {
+      alert('تغيير معرّف الرابط غير مدعوم من المحرر حاليًا حتى لا تنشأ نسخة جديدة أو تضيع البيانات. يمكنك تعديل اسم المطعم بحرية.');
+      return;
+    }
     if (new Blob([draft.stitchDesignCode || '']).size > 400_000) {
       alert('حجم تصميم Stitch يتجاوز 400 كيلوبايت. استخدم روابط مستضافة للصور والخطوط بدل تضمينها داخل الكود.');
       return;
@@ -355,11 +511,42 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
         updatedAt: new Date().toISOString()
       };
 
-      const docRef = doc(db, 'restaurants', cleanSlug);
-      await setDoc(docRef, payload, { merge: true });
+      const docRef = doc(db, 'restaurants', initialRestaurant.id);
+      const existing = await getDoc(docRef);
+      const batch = writeBatch(db);
+      if (existing.exists()) {
+        const previous = existing.data();
+        // Archive the previous published state atomically with the new publication.
+        // Only menu presentation data is stored; private owner information is excluded.
+        const publishedMenu = {
+          id: initialRestaurant.id,
+          slug: previous.slug || initialRestaurant.id,
+          name: previous.name || '',
+          nameEn: previous.nameEn || '',
+          logoUrl: previous.logoUrl || previous.logo || '',
+          coverUrl: previous.coverUrl || '',
+          primaryColor: previous.primaryColor || '#A33900',
+          secondaryColor: previous.secondaryColor || '',
+          currency: previous.currency || 'ر.س',
+          type: previous.type || 'restaurant',
+          statusText: previous.statusText || '',
+          statusTextEn: previous.statusTextEn || '',
+          isActive: previous.isActive !== false,
+          contact: previous.contact || {},
+          categories: previous.categories || [],
+          products: previous.products || previous.items || [],
+          stitchDesignCode: previous.stitchDesignCode || ''
+        };
+        batch.set(doc(collection(db, 'menuVersions', initialRestaurant.id, 'versions')), {
+          menu: publishedMenu,
+          archivedAt: serverTimestamp()
+        });
+      }
+      batch.set(docRef, payload, { merge: true });
+      await batch.commit();
 
       showToast('🎉 تم حفظ ونشر جميع التعديلات المرئية إلى Firebase بنجاح!');
-      onSaved({ ...draft, slug: cleanSlug });
+      onSaved({ ...draft, id: initialRestaurant.id, slug: cleanSlug });
     } catch (err: any) {
       console.error('Error publishing to Firestore:', err);
       alert(`حدث خطأ أثناء النشر إلى Firebase: ${err?.message || err}`);
@@ -407,7 +594,7 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
         {/* Right Info & Back */}
         <div className="flex items-center gap-3">
           <button
-            onClick={onClose}
+            onClick={() => void handleExitEditor()}
             className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition-colors cursor-pointer"
             title="إلغاء والعودة للداشبورد"
           >
@@ -498,8 +685,20 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
           </div>
         </div>
 
-        {/* Save & Publish Action */}
+        {/* Draft autosaves, but the customer menu changes only on explicit publication. */}
         <div className="flex items-center gap-2">
+          <span className={`hidden text-[10px] md:block ${draftSaveStatus === 'error' ? 'text-red-400' : 'text-zinc-300'}`}>
+            {draftSaveStatus === 'loading' ? 'فتح المسودة…' : draftSaveStatus === 'saving' ? 'حفظ المسودة…' : draftSaveStatus === 'saved' ? 'المسودة محفوظة تلقائيًا' : 'تعذر حفظ المسودة'}
+          </span>
+          <button type="button" onClick={handleLoadHistory} className="rounded-xl border border-zinc-600 px-3 py-2 text-xs text-white hover:bg-zinc-800">الإصدارات السابقة</button>
+          <button type="button" onClick={handleCreateClientPreview} disabled={!draftReady || shareBusy}
+            className="rounded-xl border border-amber-400/40 px-3 py-2 text-xs font-bold text-amber-300 hover:bg-zinc-800 disabled:opacity-50">
+            {shareBusy ? 'إنشاء المعاينة…' : 'معاينة وإرسال للعميل'}
+          </button>
+          <label className="hidden items-center gap-1.5 text-[11px] text-white md:flex" title="يمكنك نشر منيو جديد مع إبقائه غير متاح للزوار">
+            <input type="checkbox" checked={draft.isActive !== false} onChange={(event) => updateField('isActive', event.target.checked)} />
+            تفعيل المنيو
+          </label>
           <button
             onClick={handleSaveToFirestore}
             disabled={saving}
@@ -520,6 +719,50 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
         </div>
       </header>
 
+
+      {previewUrl && (
+        <div className="fixed inset-0 z-[100] grid place-items-center bg-black/80 p-4" dir="rtl">
+          <div className="w-full max-w-xl space-y-4 rounded-3xl bg-white p-6 text-zinc-900 shadow-2xl">
+            <div className="flex items-start justify-between gap-2">
+              <div><h2 className="text-lg font-black">معاينة خاصة لصاحب المطعم</h2>
+                <p className="mt-1 text-xs text-zinc-500">الرابط صالح 7 أيام؛ يستطيع العميل المشاهدة فقط. التغييرات لم تُنشر على المنيو العام.</p>
+              </div>
+              <button type="button" onClick={() => setPreviewUrl('')} className="rounded-lg bg-zinc-100 p-2" aria-label="إغلاق"><X size={17}/></button>
+            </div>
+            <a href={previewUrl} target="_blank" rel="noreferrer" className="block break-all rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-xs text-blue-700" dir="ltr">{previewUrl}</a>
+            <label className="block text-xs font-bold">رقم واتساب العميل (بالرمز الدولي)
+              <input dir="ltr" type="tel" value={previewPhone} onChange={(event) => setPreviewPhone(event.target.value)}
+                className="mt-2 block w-full rounded-xl border border-zinc-200 p-3 text-sm" placeholder="+9677..." />
+            </label>
+            <label className="block text-xs font-bold">رسالة واتساب — يمكن تعديلها قبل الإرسال
+              <textarea rows={6} value={previewMessage} onChange={(event) => setPreviewMessage(event.target.value)}
+                className="mt-2 block w-full rounded-xl border border-zinc-200 p-3 text-sm leading-6" />
+            </label>
+            <button type="button" onClick={handleOpenWhatsApp} className="w-full rounded-xl bg-[#20b75a] p-3 text-sm font-black text-white">
+              فتح محادثة العميل في واتساب برسالة جاهزة
+            </button>
+            <p className="text-center text-[11px] text-zinc-500">ستُفتح محادثة واتساب بالرسالة والرابط، ثم تضغط «إرسال» بنفسك.</p>
+          </div>
+        </div>
+      )}
+
+      {historyOpen && (
+        <div className="fixed inset-0 z-[100] grid place-items-center bg-black/80 p-4" dir="rtl">
+          <div className="max-h-[85vh] w-full max-w-lg space-y-3 overflow-auto rounded-3xl bg-white p-6 text-zinc-900">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-black">الإصدارات المنشورة سابقًا</h2>
+              <button type="button" onClick={() => setHistoryOpen(false)} className="rounded-lg bg-zinc-100 p-2" aria-label="إغلاق"><X size={17}/></button>
+            </div>
+            <p className="text-xs text-zinc-500">استعادة إصدار سابق تُحمّله كمسودة أولًا، ولا تغيّر المنيو المنشور حتى تضغط نشر.</p>
+            {menuVersions.length === 0 ? <p className="rounded-xl bg-zinc-100 p-4 text-sm">لا توجد إصدارات محفوظة بعد.</p> : menuVersions.map((version) => (
+              <button key={version.id} type="button" onClick={() => handleRestoreVersion(version.menu)}
+                className="block w-full rounded-xl border border-zinc-200 p-3 text-right text-sm hover:bg-zinc-50">
+                نسخة مؤرشفة — {version.savedAt}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* WORKSPACE CANVAS */}
       <details className="z-30 bg-zinc-950 text-white border-b border-zinc-800 px-4 py-3">
