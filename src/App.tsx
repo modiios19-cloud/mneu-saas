@@ -26,13 +26,13 @@ function getInitialSlug(): string {
   if (typeof window === 'undefined') return 'backfries';
   const params = new URLSearchParams(window.location.search);
   const foundSlug = params.get('id') || params.get('restaurant') || params.get('slug');
-  return foundSlug ? foundSlug.trim().toLowerCase() : 'backfries';
+  return foundSlug ? foundSlug.trim().toLowerCase() : isSandbox ? 'sandbox-cafe' : 'backfries';
 }
 
 function getInitialView(): 'client' | 'admin' {
   if (typeof window === 'undefined') return 'client';
   const params = new URLSearchParams(window.location.search);
-  return params.get('admin') === 'true' || params.get('view') === 'admin' ? 'admin' : 'client';
+  return params.get('admin') === 'true' || params.get('view') === 'admin' || (isSandbox && !params.has('id') && !params.has('preview')) ? 'admin' : 'client';
 }
 
 export default function App() {
