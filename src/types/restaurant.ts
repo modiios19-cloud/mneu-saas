@@ -90,4 +90,6 @@ export interface PlatformSettings {
   platformName: string;
   platformLogoUrl?: string;
   allowedVenueTypes?: { id: string; labelAr: string; icon?: string }[];
+  /** Public HTTPS origin used to build client-facing preview links. */
+  publicBaseUrl?: string;
 }
