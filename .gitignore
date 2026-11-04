@@ -10,3 +10,5 @@ coverage/
 .firebase/
 test-results/
 playwright-report/
+dist-staging/
+staging/firestore.rules

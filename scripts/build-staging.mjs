@@ -1,0 +1,11 @@
+import {readFileSync,writeFileSync} from 'node:fs';
+import {spawnSync} from 'node:child_process';
+const config=JSON.parse(readFileSync('staging/web-config.json','utf8'));
+if(config.projectId!=='mneu-saas-staging')throw Error('Only the isolated staging project is allowed');
+const uid=process.env.STAGING_ADMIN_UID;
+if(!uid || !/^[A-Za-z0-9_-]{6,128}$/.test(uid))throw Error('STAGING_ADMIN_UID must be the test administrator UID');
+if(uid==='VZMngh2pukhR8r2RoZpNIopt4R82')throw Error('Do not reuse the production administrator identity for staging');
+const rules=readFileSync('firestore.rules','utf8').replaceAll('VZMngh2pukhR8r2RoZpNIopt4R82',uid);
+writeFileSync('staging/firestore.rules',rules);
+const result=spawnSync('node_modules/.bin/vite',['build','--mode','staging','--outDir','dist-staging'],{stdio:'inherit',env:{...process.env,VITE_APP_ENV:'staging',VITE_FIREBASE_PROJECT_ID:config.projectId,VITE_FIREBASE_API_KEY:config.apiKey,VITE_FIREBASE_AUTH_DOMAIN:config.authDomain,VITE_FIREBASE_APP_ID:config.appId,VITE_ADMIN_UID:uid}});
+process.exit(result.status??1);
