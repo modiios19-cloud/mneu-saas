@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { PlatformSettings as PlatformSettingsType } from '../../types/restaurant';
@@ -44,6 +44,8 @@ export const PlatformSettings: React.FC<PlatformSettingsProps> = ({
   );
   const [newTypeName, setNewTypeName] = useState('');
   const [saving, setSaving] = useState(false);
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const initialRender = useRef(true);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
@@ -85,6 +87,35 @@ export const PlatformSettings: React.FC<PlatformSettingsProps> = ({
     setVenueTypes(venueTypes.filter((t) => t.id !== id));
   };
 
+  // Dashboard settings are configuration data, never code changes.
+  // Debounce saves to avoid writing to Firestore on each keystroke.
+  useEffect(() => {
+    if (initialRender.current) {
+      initialRender.current = false;
+      return;
+    }
+    let active = true;
+    setAutoSaveStatus('saving');
+    const timeout = setTimeout(async () => {
+      try {
+        if (!db) throw new Error('Firestore unavailable');
+        const updated: PlatformSettingsType = {
+          platformName: platformName.trim(),
+          platformLogoUrl: platformLogoUrl.trim(),
+          allowedVenueTypes: venueTypes,
+          publicBaseUrl: publicBaseUrl.trim()
+        };
+        if (!updated.platformName) { if (active) setAutoSaveStatus('error'); return; }
+        await setDoc(doc(db, 'settings', 'general'), updated, { merge: true });
+        if (active) { setAutoSaveStatus('saved'); onSaved(updated); }
+      } catch (error) {
+        console.error('Settings autosave failed', error);
+        if (active) setAutoSaveStatus('error');
+      }
+    }, 1200);
+    return () => { active = false; clearTimeout(timeout); };
+  }, [platformName, platformLogoUrl, venueTypes, publicBaseUrl]);
+
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!platformName.trim()) {
@@ -101,10 +132,9 @@ export const PlatformSettings: React.FC<PlatformSettingsProps> = ({
         publicBaseUrl: publicBaseUrl.trim()
       };
 
-      if (db) {
-        const docRef = doc(db, 'settings', 'general');
-        await setDoc(docRef, updated, { merge: true });
-      }
+      if (!db) throw new Error('Firestore unavailable');
+      const docRef = doc(db, 'settings', 'general');
+      await setDoc(docRef, updated, { merge: true });
 
       showToast('تم حفظ إعدادات المنصة في Firestore بنجاح');
       onSaved(updated);
@@ -134,6 +164,7 @@ export const PlatformSettings: React.FC<PlatformSettingsProps> = ({
         </div>
         <p className="text-xs text-zinc-600 leading-relaxed">
           تخصيص الهوية العامة للداشبورد وتصنيفات الأنشطة المتاحة في النظام، وتخزينها في <code>settings/general</code>
+          <span className={`block pt-2 font-bold ${autoSaveStatus === 'error' ? 'text-red-600' : 'text-zinc-500'}`}>{autoSaveStatus === 'saving' ? 'يجري الحفظ التلقائي…' : autoSaveStatus === 'saved' ? 'الإعدادات محفوظة تلقائيًا في Firebase' : autoSaveStatus === 'error' ? 'تعذر الحفظ التلقائي؛ تحقق من اتصال Firebase وصلاحياته' : 'تُحفظ التعديلات تلقائيًا بعد التوقف عن الكتابة'}</span>
         </p>
       </div>
 
