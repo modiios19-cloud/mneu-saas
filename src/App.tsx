@@ -14,6 +14,7 @@ import { ShieldCheck } from 'lucide-react';
 import { auth } from './lib/firebase';
 import { AdminLogin } from './components/AdminLogin';
 import { PublicReport } from './components/PublicReport';
+import { MenuPreview } from './components/MenuPreview';
 import { buildStitchDocument } from './lib/stitchDesign';
 
 // Client-side convenience only; Firestore rules enforce this UID server-side.
@@ -43,6 +44,7 @@ export default function App() {
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const reportToken = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('report');
+  const previewToken = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('preview');
 
   // Hook to fetch restaurant data dynamically from Firebase Firestore
   const { data: restaurant, loading, error, reload } = useRestaurant(slug);
@@ -111,6 +113,7 @@ export default function App() {
     }
   }, [lang, restaurant, isAr, viewMode]);
 
+  if (previewToken) return <MenuPreview token={previewToken} />;
   if (reportToken) return <PublicReport token={reportToken} />;
 
   // If in Admin Dashboard mode, render AdminDashboard
