@@ -90,4 +90,3 @@ Keep navigation, category selection, phone/WhatsApp links, and other menu intera
 ## Storage and editing
 
 Menu content (name, logo, categories, products, offers, prices, images and contact links) remains in the restaurant document and is edited in the visual menu editor. Replacing the Stitch HTML changes the visual layer; it does not replace the menu content. The design is size-limited to 400 KB so the combined Firestore document stays below the document-size ceiling. Large photos and font files should be hosted and referenced by URL.
-

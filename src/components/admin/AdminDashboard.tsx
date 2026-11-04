@@ -1088,7 +1088,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <div className="relative shrink-0">
                             {item.logoUrl ? (
                               <img
-                                src={item.logoUrl}
+                                src={item.logoUrl || undefined}
                                 alt={item.name}
                                 className="w-10 h-10 rounded-xl object-cover bg-black border border-white/10"
                               />
@@ -1250,7 +1250,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <div className="flex items-center gap-3 px-2">
             {platformSettings.platformLogoUrl ? (
               <img
-                src={platformSettings.platformLogoUrl}
+                src={platformSettings.platformLogoUrl || undefined}
                 alt="شعار المنصة"
                 className="w-11 h-11 rounded-2xl object-contain bg-black border border-white/10"
               />
@@ -1679,7 +1679,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               <div className="w-14 h-14 rounded-2xl bg-[#1C1C1E] border border-white/10 flex items-center justify-center text-xl font-black text-[#F7E354] shadow-inner overflow-hidden flex-shrink-0">
                                 {v.logoUrl ? (
                                   <img
-                                    src={v.logoUrl}
+                                    src={v.logoUrl || undefined}
                                     alt={v.name}
                                     className="w-full h-full object-contain p-1"
                                   />

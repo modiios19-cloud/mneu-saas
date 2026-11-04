@@ -152,7 +152,7 @@ export const VenuesManagement: React.FC<VenuesManagementProps> = ({
                             <div className="w-12 h-12 rounded-2xl overflow-hidden bg-zinc-100 border border-zinc-200/80 flex items-center justify-center flex-shrink-0 shadow-2xs">
                               {venue.logoUrl ? (
                                 <img
-                                  src={venue.logoUrl}
+                                  src={venue.logoUrl || undefined}
                                   alt={venue.name}
                                   className="w-full h-full object-contain p-1"
                                 />
@@ -226,4 +226,3 @@ export const VenuesManagement: React.FC<VenuesManagementProps> = ({
     </div>
   );
 };
-

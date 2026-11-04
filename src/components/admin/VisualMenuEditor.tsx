@@ -736,7 +736,7 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
                 {draft.logoUrl ? (
                   <img
                     alt={draft.name}
-                    src={draft.logoUrl}
+                    src={draft.logoUrl || undefined}
                     className="h-14 w-auto max-w-[120px] object-contain transition-transform group-hover/logo:scale-105"
                   />
                 ) : (
@@ -874,7 +874,7 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
                           title="انقر لتغيير صورة الوجبة"
                         >
                           <img
-                            src={item.imageUrl}
+                            src={item.imageUrl || undefined}
                             alt={item.nameAr}
                             className="w-full h-full object-cover"
                           />
@@ -1088,7 +1088,7 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
               {imageUrlInput && (
                 <div className="w-full h-36 rounded-xl overflow-hidden bg-zinc-100 border border-zinc-200 flex items-center justify-center">
                   <img
-                    src={imageUrlInput}
+                    src={imageUrlInput || undefined}
                     alt="Preview"
                     className="w-full h-full object-cover"
                     onError={(e) => (e.currentTarget.style.display = 'none')}

@@ -57,4 +57,3 @@ export function buildReportAnalytics(restaurantId: string, startDate: string, en
   }
   return { ...total, daily, hourly };
 }
-

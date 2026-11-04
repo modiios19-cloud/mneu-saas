@@ -91,7 +91,7 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
           <div className="flex items-center justify-center gap-2">
             {restaurant.logoUrl && (
               <img
-                src={restaurant.logoUrl}
+                src={restaurant.logoUrl || undefined}
                 alt={restaurant.name}
                 className="w-8 h-8 rounded-lg object-contain bg-zinc-50 border border-zinc-100 p-0.5"
               />

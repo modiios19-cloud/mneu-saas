@@ -266,7 +266,7 @@ export const EditRestaurantForm: React.FC<EditRestaurantFormProps> = ({
             >
               {formData.logoUrl ? (
                 <img
-                  src={formData.logoUrl}
+                  src={formData.logoUrl || undefined}
                   alt={formData.name}
                   className="w-full h-full object-cover rounded-2xl"
                 />
@@ -431,7 +431,7 @@ export const EditRestaurantForm: React.FC<EditRestaurantFormProps> = ({
                   />
                   {formData.logoUrl && (
                     <img
-                      src={formData.logoUrl}
+                      src={formData.logoUrl || undefined}
                       alt="Logo preview"
                       className="w-10 h-10 rounded-xl object-contain border border-zinc-200 bg-zinc-100 p-1"
                     />
@@ -694,7 +694,7 @@ export const EditRestaurantForm: React.FC<EditRestaurantFormProps> = ({
                     {/* Item Image */}
                     <div className="w-16 h-16 rounded-xl overflow-hidden bg-zinc-100 flex-shrink-0 relative">
                       <img
-                        src={item.imageUrl}
+                        src={item.imageUrl || undefined}
                         alt={item.nameAr}
                         className="w-full h-full object-cover"
                       />
@@ -888,7 +888,7 @@ export const EditRestaurantForm: React.FC<EditRestaurantFormProps> = ({
                   />
                   {itemForm.imageUrl && (
                     <img
-                      src={itemForm.imageUrl}
+                      src={itemForm.imageUrl || undefined}
                       alt="preview"
                       className="w-9 h-9 rounded-lg object-cover border border-zinc-200"
                     />

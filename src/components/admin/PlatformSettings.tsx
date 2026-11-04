@@ -212,7 +212,7 @@ export const PlatformSettings: React.FC<PlatformSettingsProps> = ({
               />
               {platformLogoUrl ? (
                 <img
-                  src={platformLogoUrl}
+                  src={platformLogoUrl || undefined}
                   alt="Platform Logo Preview"
                   className="w-10 h-10 rounded-xl object-contain border border-zinc-200 bg-zinc-100 p-1"
                 />

@@ -54,4 +54,3 @@ export function buildStitchDocument(source: string, data: StitchMenuData): strin
   const head = /<head[^>]*>/i;
   return head.test(source) ? source.replace(head, (match) => `${match}${bridge}`) : `${bridge}${source}`;
 }
-
