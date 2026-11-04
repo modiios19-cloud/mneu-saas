@@ -51,7 +51,7 @@ export function makePreviewUrl(baseUrl: string, token: string): string {
   if (!baseUrl.trim()) throw new Error('أضف رابط الموقع العام من إعدادات المنصة قبل إرسال معاينة لعميل.');
   const url = new URL(baseUrl.trim());
   if (url.protocol !== 'https:') throw new Error('رابط الموقع يجب أن يستخدم HTTPS.');
-  if (/^(localhost|127\\.0\\.0\\.1)$/.test(url.hostname) || /aistudio\\.google\\.com$/.test(url.hostname)) {
+  if (url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === 'aistudio.google.com' || url.hostname.endsWith('.aistudio.google.com')) {
     throw new Error('رابط معاينة AI Studio أو الرابط المحلي لا يصلح للمشاركة. أدخل رابط الاستضافة العامة.');
   }
   url.search = '';
@@ -70,7 +70,7 @@ ${previewUrl}
 }
 
 export function whatsappLink(phone: string, message: string): string {
-  const digits = phone.replace(/\\D/g, '');
+  const digits = phone.replace(/[^0-9]/g, '');
   if (digits.length < 8 || digits.length > 15) throw new Error('يرجى إدخال رقم واتساب العميل بالصيغة الدولية.');
   return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
 }
