@@ -684,8 +684,16 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
           </div>
         </div>
 
-        {/* Save & Publish Action */}
+        {/* Draft autosaves, but the customer menu changes only on explicit publication. */}
         <div className="flex items-center gap-2">
+          <span className={`hidden text-[10px] md:block ${draftSaveStatus === 'error' ? 'text-red-400' : 'text-zinc-300'}`}>
+            {draftSaveStatus === 'loading' ? 'فتح المسودة…' : draftSaveStatus === 'saving' ? 'حفظ المسودة…' : draftSaveStatus === 'saved' ? 'المسودة محفوظة تلقائيًا' : 'تعذر حفظ المسودة'}
+          </span>
+          <button type="button" onClick={handleLoadHistory} className="rounded-xl border border-zinc-600 px-3 py-2 text-xs text-white hover:bg-zinc-800">الإصدارات السابقة</button>
+          <button type="button" onClick={handleCreateClientPreview} disabled={!draftReady || shareBusy}
+            className="rounded-xl border border-amber-400/40 px-3 py-2 text-xs font-bold text-amber-300 hover:bg-zinc-800 disabled:opacity-50">
+            {shareBusy ? 'إنشاء المعاينة…' : 'معاينة وإرسال للعميل'}
+          </button>
           <button
             onClick={handleSaveToFirestore}
             disabled={saving}
@@ -706,6 +714,50 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
         </div>
       </header>
 
+
+      {previewUrl && (
+        <div className="fixed inset-0 z-[100] grid place-items-center bg-black/80 p-4" dir="rtl">
+          <div className="w-full max-w-xl space-y-4 rounded-3xl bg-white p-6 text-zinc-900 shadow-2xl">
+            <div className="flex items-start justify-between gap-2">
+              <div><h2 className="text-lg font-black">معاينة خاصة لصاحب المطعم</h2>
+                <p className="mt-1 text-xs text-zinc-500">الرابط صالح 7 أيام؛ يستطيع العميل المشاهدة فقط. التغييرات لم تُنشر على المنيو العام.</p>
+              </div>
+              <button type="button" onClick={() => setPreviewUrl('')} className="rounded-lg bg-zinc-100 p-2" aria-label="إغلاق"><X size={17}/></button>
+            </div>
+            <a href={previewUrl} target="_blank" rel="noreferrer" className="block break-all rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-xs text-blue-700" dir="ltr">{previewUrl}</a>
+            <label className="block text-xs font-bold">رقم واتساب العميل (بالرمز الدولي)
+              <input dir="ltr" type="tel" value={previewPhone} onChange={(event) => setPreviewPhone(event.target.value)}
+                className="mt-2 block w-full rounded-xl border border-zinc-200 p-3 text-sm" placeholder="+9677..." />
+            </label>
+            <label className="block text-xs font-bold">رسالة واتساب — يمكن تعديلها قبل الإرسال
+              <textarea rows={6} value={previewMessage} onChange={(event) => setPreviewMessage(event.target.value)}
+                className="mt-2 block w-full rounded-xl border border-zinc-200 p-3 text-sm leading-6" />
+            </label>
+            <button type="button" onClick={handleOpenWhatsApp} className="w-full rounded-xl bg-[#20b75a] p-3 text-sm font-black text-white">
+              فتح محادثة العميل في واتساب برسالة جاهزة
+            </button>
+            <p className="text-center text-[11px] text-zinc-500">ستُفتح محادثة واتساب بالرسالة والرابط، ثم تضغط «إرسال» بنفسك.</p>
+          </div>
+        </div>
+      )}
+
+      {historyOpen && (
+        <div className="fixed inset-0 z-[100] grid place-items-center bg-black/80 p-4" dir="rtl">
+          <div className="max-h-[85vh] w-full max-w-lg space-y-3 overflow-auto rounded-3xl bg-white p-6 text-zinc-900">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-black">الإصدارات المنشورة سابقًا</h2>
+              <button type="button" onClick={() => setHistoryOpen(false)} className="rounded-lg bg-zinc-100 p-2" aria-label="إغلاق"><X size={17}/></button>
+            </div>
+            <p className="text-xs text-zinc-500">استعادة إصدار سابق تُحمّله كمسودة أولًا، ولا تغيّر المنيو المنشور حتى تضغط نشر.</p>
+            {menuVersions.length === 0 ? <p className="rounded-xl bg-zinc-100 p-4 text-sm">لا توجد إصدارات محفوظة بعد.</p> : menuVersions.map((version) => (
+              <button key={version.id} type="button" onClick={() => handleRestoreVersion(version.menu)}
+                className="block w-full rounded-xl border border-zinc-200 p-3 text-right text-sm hover:bg-zinc-50">
+                نسخة مؤرشفة — {version.savedAt}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* WORKSPACE CANVAS */}
       <details className="z-30 bg-zinc-950 text-white border-b border-zinc-800 px-4 py-3">
