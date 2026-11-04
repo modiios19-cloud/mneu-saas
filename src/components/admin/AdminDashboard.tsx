@@ -327,7 +327,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         secondaryColor,
         currency,
         stitchDesignCode: newMenuThemeConfig,
-        isActive: true,
+        // New menus remain unavailable publicly until the owner approves them.
+        isActive: false,
         logoUrl: '',
         statusText: 'مفتوح للطلبات الآن',
         categories: initialCategories,
