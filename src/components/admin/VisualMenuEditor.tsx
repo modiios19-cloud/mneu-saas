@@ -172,7 +172,8 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
       onClose();
     } catch (error) {
       console.error('Could not save draft on exit', error);
-      showToast('لم تُحفظ المسودة؛ تحقق من صلاحيات Firestore قبل الخروج.');
+      if (window.confirm('تعذّر حفظ المسودة في Firebase. هل تريد الخروج مع احتمال فقد آخر التعديلات؟')) onClose();
+      else showToast('لم تُحفظ المسودة؛ تحقق من صلاحيات Firestore.');
     }
   };
 
