@@ -110,6 +110,145 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
     [draft.stitchDesignCode]
   );
 
+  // A draft is private to the administrator. Editing it does not affect the live customer menu.
+  useEffect(() => {
+    let alive = true;
+    getDoc(doc(db, 'menuDrafts', initialRestaurant.id))
+      .then((snapshot) => {
+        if (!alive || !snapshot.exists()) return;
+        const savedMenu = snapshot.data().menu as Partial<RestaurantData> | undefined;
+        if (!savedMenu || typeof savedMenu !== 'object') return;
+        setDraft((current) => ({
+          ...current,
+          ...savedMenu,
+          id: initialRestaurant.id,
+          slug: initialRestaurant.slug,
+          client: current.client,
+          businessInfo: current.businessInfo,
+          categories: Array.isArray(savedMenu.categories) ? savedMenu.categories : current.categories,
+          products: Array.isArray(savedMenu.products) ? savedMenu.products : current.products
+        }));
+      })
+      .catch((error) => {
+        console.error('Could not restore menu draft', error);
+        if (alive) setDraftSaveStatus('error');
+      })
+      .finally(() => { if (alive) setDraftReady(true); });
+    return () => { alive = false; };
+  }, [initialRestaurant.id]);
+
+  // Changes are persisted in Firestore automatically after a brief pause.
+  // Publishing remains explicit so an unfinished design never replaces the live menu.
+  useEffect(() => {
+    if (!draftReady) return;
+    if (new Blob([draft.stitchDesignCode || '']).size > 400_000) {
+      setDraftSaveStatus('error');
+      return;
+    }
+    setDraftSaveStatus('saving');
+    let active = true;
+    const timer = setTimeout(async () => {
+      try {
+        await setDoc(doc(db, 'menuDrafts', initialRestaurant.id), {
+          menu: toEditableMenu(draft),
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+        if (active) setDraftSaveStatus('saved');
+      } catch (error) {
+        console.error('Autosave failed', error);
+        if (active) setDraftSaveStatus('error');
+      }
+    }, 1100);
+    return () => { active = false; clearTimeout(timer); };
+  }, [draft, draftReady, initialRestaurant.id]);
+
+  const handleExitEditor = async () => {
+    if (!draftReady) { onClose(); return; }
+    try {
+      await setDoc(doc(db, 'menuDrafts', initialRestaurant.id), {
+        menu: toEditableMenu(draft),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      onClose();
+    } catch (error) {
+      console.error('Could not save draft on exit', error);
+      showToast('لم تُحفظ المسودة؛ تحقق من صلاحيات Firestore قبل الخروج.');
+    }
+  };
+
+  const handleCreateClientPreview = async () => {
+    if (!draftReady || shareBusy) return;
+    if (!draft.stitchDesignCode?.trim()) {
+      showToast('أضف تصميم HTML من Stitch قبل إنشاء المعاينة.');
+      return;
+    }
+    if (new Blob([draft.stitchDesignCode]).size > 400_000) {
+      showToast('حجم التصميم يتجاوز 400,000 بايت.');
+      return;
+    }
+    setShareBusy(true);
+    try {
+      const previewRef = doc(collection(db, 'menuPreviews'));
+      const url = makePreviewUrl(publicBaseUrl, previewRef.id);
+      await setDoc(previewRef, {
+        restaurantId: initialRestaurant.id,
+        menu: toPreviewMenu(draft),
+        designHtml: draft.stitchDesignCode,
+        status: 'active',
+        createdAt: serverTimestamp(),
+        expiresAt: Timestamp.fromMillis(Date.now() + 7 * 86400000)
+      });
+      setPreviewUrl(url);
+      setPreviewPhone(initialRestaurant.client?.phone || '');
+      setPreviewMessage(whatsappPreviewMessage(draft.name, url, initialRestaurant.client?.name));
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'تعذر إنشاء رابط المعاينة.');
+    } finally {
+      setShareBusy(false);
+    }
+  };
+
+  const handleOpenWhatsApp = () => {
+    try {
+      const url = whatsappLink(previewPhone, previewMessage);
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'تحقق من رقم واتساب العميل.');
+    }
+  };
+
+  const handleLoadHistory = async () => {
+    try {
+      const snapshots = await getDocs(collection(db, 'menuVersions', initialRestaurant.id, 'versions'));
+      const versions = snapshots.docs.map((snap) => {
+        const record = snap.data();
+        const date = record.archivedAt instanceof Timestamp ? record.archivedAt.toDate().toLocaleString('ar') : 'تاريخ غير متاح';
+        return { id: snap.id, savedAt: date, menu: (record.menu || {}) as Partial<RestaurantData>, time: record.archivedAt instanceof Timestamp ? record.archivedAt.toMillis() : 0 };
+      }).sort((a, b) => b.time - a.time).slice(0, 20);
+      setMenuVersions(versions);
+      setHistoryOpen(true);
+    } catch (error) {
+      console.error('Could not load menu versions', error);
+      showToast('تعذر تحميل الإصدارات القديمة.');
+    }
+  };
+
+  const handleRestoreVersion = (version: Partial<RestaurantData>) => {
+    setDraft((current) => ({
+      ...current,
+      ...version,
+      id: initialRestaurant.id,
+      slug: initialRestaurant.slug,
+      client: current.client,
+      businessInfo: current.businessInfo,
+      contact: version.contact || current.contact,
+      categories: version.categories || current.categories,
+      products: version.products || current.products
+    }));
+    setHistoryOpen(false);
+    showToast('استُعيدت نسخة سابقة كمسودة؛ راجعها قبل اعتمادها ونشرها.');
+  };
+
   useEffect(() => {
     stitchPreviewRef.current?.contentWindow?.postMessage({ type: 'MENU_DATA_UPDATE', payload: stitchMenuData }, '*');
   }, [stitchMenuData]);
