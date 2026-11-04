@@ -479,7 +479,7 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
           <div className="my-4 flex items-center gap-3">
             {topVenue?.logoUrl ? (
               <img
-                src={topVenue.logoUrl}
+                src={topVenue.logoUrl || undefined}
                 alt={topVenue.name}
                 className="w-12 h-12 rounded-2xl object-cover bg-black/40 border border-white/10 shrink-0"
               />
@@ -1043,7 +1043,7 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
                         <div className="flex items-center gap-3">
                           {venue.logoUrl ? (
                             <img
-                              src={venue.logoUrl}
+                              src={venue.logoUrl || undefined}
                               alt={venue.name}
                               className="w-10 h-10 rounded-xl object-cover bg-black/40 border border-white/10 shrink-0"
                             />

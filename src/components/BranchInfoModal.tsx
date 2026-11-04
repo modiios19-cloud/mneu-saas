@@ -37,7 +37,7 @@ export const BranchInfoModal: React.FC<BranchInfoModalProps> = ({
         <div className="text-center pt-2">
           {restaurant.logoUrl && (
             <img
-              src={restaurant.logoUrl}
+              src={restaurant.logoUrl || undefined}
               alt={restaurant.name}
               className="w-12 h-12 object-contain mx-auto mb-2"
             />

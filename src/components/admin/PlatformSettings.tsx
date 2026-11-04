@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { doc, setDoc } from 'firebase/firestore';
+import { savePlatformSettings } from '../../lib/menuRepository';
+import React, { useEffect, useRef, useState } from 'react';
+import { doc, setDoc } from '../../lib/dataStore';
 import { db } from '../../lib/firebase';
 import { PlatformSettings as PlatformSettingsType } from '../../types/restaurant';
 import { Save, Store, CheckCircle2, RefreshCw, Plus, Trash2, Sliders, Upload, X } from 'lucide-react';
@@ -34,6 +35,9 @@ export const PlatformSettings: React.FC<PlatformSettingsProps> = ({
 }) => {
   const [platformName, setPlatformName] = useState(settings.platformName || 'منصة إدارة المطاعم');
   const [platformLogoUrl, setPlatformLogoUrl] = useState(settings.platformLogoUrl || '');
+  const [platformTagline, setPlatformTagline] = useState(settings.platformTagline || 'الشركة اليمنية للذكاء الاصطناعي');
+  const [platformSubtitle, setPlatformSubtitle] = useState(settings.platformSubtitle || 'قسم إدارة المطاعم');
+  const [publicBaseUrl, setPublicBaseUrl] = useState(settings.publicBaseUrl || '');
   const [compressingLogo, setCompressingLogo] = useState(false);
   const [venueTypes, setVenueTypes] = useState(
     settings.allowedVenueTypes || [
@@ -43,6 +47,8 @@ export const PlatformSettings: React.FC<PlatformSettingsProps> = ({
   );
   const [newTypeName, setNewTypeName] = useState('');
   const [saving, setSaving] = useState(false);
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const initialRender = useRef(true);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
@@ -84,6 +90,37 @@ export const PlatformSettings: React.FC<PlatformSettingsProps> = ({
     setVenueTypes(venueTypes.filter((t) => t.id !== id));
   };
 
+  // Dashboard settings are configuration data, never code changes.
+  // Debounce saves to avoid writing to Firestore on each keystroke.
+  useEffect(() => {
+    if (initialRender.current) {
+      initialRender.current = false;
+      return;
+    }
+    let active = true;
+    setAutoSaveStatus('saving');
+    const timeout = setTimeout(async () => {
+      try {
+        if (!db) throw new Error('Firestore unavailable');
+        const updated: PlatformSettingsType = {
+          platformName: platformName.trim(),
+          platformLogoUrl: platformLogoUrl.trim(),
+          allowedVenueTypes: venueTypes,
+          platformTagline: platformTagline.trim(),
+          platformSubtitle: platformSubtitle.trim(),
+          publicBaseUrl: publicBaseUrl.trim()
+        };
+        if (!updated.platformName) { if (active) setAutoSaveStatus('error'); return; }
+        await savePlatformSettings(updated);
+        if (active) { setAutoSaveStatus('saved'); onSaved(updated); }
+      } catch (error) {
+        console.error('Settings autosave failed', error);
+        if (active) setAutoSaveStatus('error');
+      }
+    }, 1200);
+    return () => { active = false; clearTimeout(timeout); };
+  }, [platformName, platformLogoUrl, venueTypes, publicBaseUrl, platformTagline, platformSubtitle]);
+
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!platformName.trim()) {
@@ -96,13 +133,15 @@ export const PlatformSettings: React.FC<PlatformSettingsProps> = ({
       const updated: PlatformSettingsType = {
         platformName: platformName.trim(),
         platformLogoUrl: platformLogoUrl.trim(),
-        allowedVenueTypes: venueTypes
+        allowedVenueTypes: venueTypes,
+        platformTagline: platformTagline.trim(),
+          platformSubtitle: platformSubtitle.trim(),
+          publicBaseUrl: publicBaseUrl.trim()
       };
 
-      if (db) {
-        const docRef = doc(db, 'settings', 'general');
-        await setDoc(docRef, updated, { merge: true });
-      }
+      if (!db) throw new Error('Firestore unavailable');
+      const docRef = doc(db, 'settings', 'general');
+      await savePlatformSettings(updated);
 
       showToast('تم حفظ إعدادات المنصة في Firestore بنجاح');
       onSaved(updated);
@@ -132,6 +171,7 @@ export const PlatformSettings: React.FC<PlatformSettingsProps> = ({
         </div>
         <p className="text-xs text-zinc-600 leading-relaxed">
           تخصيص الهوية العامة للداشبورد وتصنيفات الأنشطة المتاحة في النظام، وتخزينها في <code>settings/general</code>
+          <span className={`block pt-2 font-bold ${autoSaveStatus === 'error' ? 'text-red-600' : 'text-zinc-500'}`}>{autoSaveStatus === 'saving' ? 'يجري الحفظ التلقائي…' : autoSaveStatus === 'saved' ? 'الإعدادات محفوظة تلقائيًا في Firebase' : autoSaveStatus === 'error' ? 'تعذر الحفظ التلقائي؛ تحقق من اتصال Firebase وصلاحياته' : 'تُحفظ التعديلات تلقائيًا بعد التوقف عن الكتابة'}</span>
         </p>
       </div>
 
@@ -143,11 +183,12 @@ export const PlatformSettings: React.FC<PlatformSettingsProps> = ({
           </h3>
 
           <div>
-            <label className="text-xs font-bold text-black block mb-1">
+            <label htmlFor="platform-name" className="text-xs font-bold text-black block mb-1">
               اسم المنصة (Platform Brand Name) *
             </label>
             <input
               type="text"
+              id="platform-name"
               value={platformName}
               onChange={(e) => setPlatformName(e.target.value)}
               placeholder="مثلاً: منصة قوائمي أو نظام المنيو الذكي"
@@ -171,7 +212,7 @@ export const PlatformSettings: React.FC<PlatformSettingsProps> = ({
               />
               {platformLogoUrl ? (
                 <img
-                  src={platformLogoUrl}
+                  src={platformLogoUrl || undefined}
                   alt="Platform Logo Preview"
                   className="w-10 h-10 rounded-xl object-contain border border-zinc-200 bg-zinc-100 p-1"
                 />
@@ -239,6 +280,28 @@ export const PlatformSettings: React.FC<PlatformSettingsProps> = ({
           </div>
         </div>
 
+        {/* Preview URL is a platform setting, never a hardcoded URL. */}
+        <div className="rounded-3xl border border-zinc-200/80 bg-white p-6 space-y-2">
+          <h3 className="text-sm font-bold text-black">رابط الموقع العام لمعاينات العملاء</h3>
+          <p className="text-xs leading-5 text-zinc-500">بعد إعداد الاستضافة، أدخل عنوان HTTPS العام هنا. سيُستخدم تلقائيًا لإنشاء روابط المعاينة المرسلة عبر واتساب. روابط Google AI Studio الداخلية لا تصلح للعملاء.</p>
+          <input
+            type="url"
+            dir="ltr"
+            value={publicBaseUrl}
+            onChange={(e) => setPublicBaseUrl(e.target.value)}
+            placeholder="https://menu.example.com"
+            className="w-full rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-xs text-black"
+          />
+        </div>
+
+        <div className="space-y-3 rounded-3xl border border-zinc-200 bg-white p-6 text-black">
+          <label className="block text-xs font-bold">وصف المنصة
+            <input value={platformTagline} onChange={e=>setPlatformTagline(e.target.value)} className="mt-2 w-full rounded-xl border p-3" />
+          </label>
+          <label className="block text-xs font-bold">عنوان القسم
+            <input value={platformSubtitle} onChange={e=>setPlatformSubtitle(e.target.value)} className="mt-2 w-full rounded-xl border p-3" />
+          </label>
+        </div>
         {/* Submit Button (Amber/Gold with Black text) */}
         <div className="pt-2">
           <button
@@ -263,3 +326,4 @@ export const PlatformSettings: React.FC<PlatformSettingsProps> = ({
     </div>
   );
 };
+

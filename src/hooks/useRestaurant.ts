@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs } from '../lib/dataStore';
 import { db, isFirebaseConfigured } from '../lib/firebase';
 import { RestaurantData, MenuItem, Category } from '../types/restaurant';
 
@@ -113,18 +113,19 @@ function normalizeRestaurantData(docId: string, rawData: any): RestaurantData {
   }
 
   // معالجة المنتجات (items أو products)
-  const rawItems = rawData.items || rawData.products || [];
+  // `products` is the canonical shape. `items` is retained only for legacy records.
+  const rawItems = rawData.products ?? rawData.items ?? [];
   const products: MenuItem[] = rawItems.map((item: any, idx: number) => ({
     id: item.id || `item-${idx}`,
-    categoryId: item.category || item.categoryId || categories[0]?.id || 'all',
-    nameAr: item.name || item.nameAr || '',
+    categoryId: item.categoryId || item.category || categories[0]?.id || 'all',
+    nameAr: item.nameAr || item.name || '',
     nameEn: item.nameEn || item.name || '',
-    descriptionAr: item.description || item.descriptionAr || '',
+    descriptionAr: item.descriptionAr || item.description || '',
     descriptionEn: item.descriptionEn || item.description || '',
     price: Number(item.price) || 0,
     originalPrice: item.originalPrice ? Number(item.originalPrice) : undefined,
     calories: item.calories,
-    imageUrl: item.image || item.imageUrl || '',
+    imageUrl: item.imageUrl || item.image || '',
     isPopular: item.category === 'الأكثر طلباً' || item.isPopular || false,
     isSpicy: item.isSpicy || false,
     isVegetarian: item.isVegetarian || false,
@@ -139,6 +140,9 @@ function normalizeRestaurantData(docId: string, rawData: any): RestaurantData {
     nameEn: rawData.nameEn || rawData.name,
     logoUrl,
     stitchDesignCode: typeof rawData.stitchDesignCode === 'string' ? rawData.stitchDesignCode : '',
+    isActive: rawData.isActive !== false,
+    type: rawData.type || 'restaurant',
+    coverUrl: rawData.coverUrl || '',
     updatedAt: rawData.updatedAt || '',
     primaryColor: rawData.primaryColor || '#A33900',
     secondaryColor: rawData.secondaryColor || '#FFEDE5',
@@ -172,31 +176,12 @@ export function useRestaurant(slug: string | null) {
     // القراءة من Firestore
     if (isFirebaseConfigured && db) {
       try {
-        const docRef = doc(db, 'restaurants', cleanSlug);
+        const docRef = doc(db, 'publicMenus', cleanSlug);
         const docSnap = await getDoc(docRef);
 
         if (docSnap.exists()) {
           const normalized = normalizeRestaurantData(docSnap.id, docSnap.data());
           setData(normalized);
-          setLoading(false);
-          return;
-        }
-
-        // فحص بالاستعلام إذا كان slug مخزن كحقل
-        const q = query(collection(db, 'restaurants'), where('slug', '==', cleanSlug));
-        const querySnapshot = await getDocs(q);
-
-        if (!querySnapshot.empty) {
-          const firstDoc = querySnapshot.docs[0];
-          const normalized = normalizeRestaurantData(firstDoc.id, firstDoc.data());
-          setData(normalized);
-          setLoading(false);
-          return;
-        }
-
-        // إذا كان المعرف backfries ولم يُزرع بعد في Firestore، نتيح استخدام النموذج التجريبي
-        if (DEMO_RESTAURANTS[cleanSlug]) {
-          setData(DEMO_RESTAURANTS[cleanSlug]);
           setLoading(false);
           return;
         }
@@ -207,11 +192,6 @@ export function useRestaurant(slug: string | null) {
         return;
       } catch (err: any) {
         console.error('Error fetching restaurant from Firestore:', err);
-        if (DEMO_RESTAURANTS[cleanSlug]) {
-          setData(DEMO_RESTAURANTS[cleanSlug]);
-          setLoading(false);
-          return;
-        }
         setError(`حدث خطأ أثناء جلب بيانات المطعم من Firestore: ${err?.message || 'خطأ غير معروف'}`);
         setData(null);
         setLoading(false);
@@ -245,3 +225,4 @@ export function useRestaurant(slug: string | null) {
     reload: fetchRestaurant
   };
 }
+

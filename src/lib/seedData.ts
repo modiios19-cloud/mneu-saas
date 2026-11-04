@@ -1,4 +1,6 @@
-import { doc, setDoc } from 'firebase/firestore';
+import { saveRestaurant } from './menuRepository';
+import { isSandbox, isEmulator } from './environment';
+import { doc, setDoc } from './dataStore';
 import { db } from './firebase';
 
 export const BACK_FRIES_SEED_DATA = {
@@ -53,8 +55,8 @@ export async function seedBackFriesToFirestore(): Promise<{ success: boolean; er
       throw new Error("لم يتم تهيئة اتصال Firestore");
     }
 
-    const restaurantRef = doc(db, 'restaurants', 'backfries');
-    await setDoc(restaurantRef, BACK_FRIES_SEED_DATA, { merge: true });
+    if (!isSandbox && !isEmulator) throw new Error('زرع البيانات متاح في بيئة الاختبار فقط');
+    await saveRestaurant('backfries', BACK_FRIES_SEED_DATA, { create: true });
 
     return { success: true };
   } catch (error: any) {
@@ -62,3 +64,4 @@ export async function seedBackFriesToFirestore(): Promise<{ success: boolean; er
     return { success: false, error: error?.message || String(error) };
   }
 }
+

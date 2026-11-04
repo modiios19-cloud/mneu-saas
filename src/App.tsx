@@ -1,3 +1,4 @@
+import { isSandbox, adminUid } from './lib/environment';
 import React, { useState, useEffect } from 'react';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
 import { useRestaurant } from './hooks/useRestaurant';
@@ -10,27 +11,28 @@ import { LoadingState } from './components/LoadingState';
 import { ErrorState } from './components/ErrorState';
 import { AdminDashboard } from './components/admin/AdminDashboard';
 import { Category, MenuItem } from './types/restaurant';
-import { ShieldCheck, AlertCircle } from 'lucide-react';
+import { ShieldCheck } from 'lucide-react';
 import { auth } from './lib/firebase';
 import { AdminLogin } from './components/AdminLogin';
 import { PublicReport } from './components/PublicReport';
+import { MenuPreview } from './components/MenuPreview';
 import { buildStitchDocument } from './lib/stitchDesign';
 
 // Client-side convenience only; Firestore rules enforce this UID server-side.
-const ADMIN_UID = 'VZMngh2pukhR8r2RoZpNIopt4R82';
+const ADMIN_UID = adminUid;
 
 // Helper to get slug from URL query params: ?id=xxx or ?restaurant=xxx or ?slug=xxx
 function getInitialSlug(): string {
   if (typeof window === 'undefined') return 'backfries';
   const params = new URLSearchParams(window.location.search);
   const foundSlug = params.get('id') || params.get('restaurant') || params.get('slug');
-  return foundSlug ? foundSlug.trim().toLowerCase() : 'backfries';
+  return foundSlug ? foundSlug.trim().toLowerCase() : isSandbox ? 'sandbox-cafe' : 'backfries';
 }
 
 function getInitialView(): 'client' | 'admin' {
   if (typeof window === 'undefined') return 'client';
   const params = new URLSearchParams(window.location.search);
-  return params.get('admin') === 'true' || params.get('view') === 'admin' ? 'admin' : 'client';
+  return params.get('admin') === 'true' || params.get('view') === 'admin' || (isSandbox && !params.has('id') && !params.has('preview')) ? 'admin' : 'client';
 }
 
 export default function App() {
@@ -43,14 +45,15 @@ export default function App() {
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const reportToken = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('report');
+  const previewToken = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('preview');
 
   // Hook to fetch restaurant data dynamically from Firebase Firestore
   const { data: restaurant, loading, error, reload } = useRestaurant(slug);
 
-  useEffect(() => onAuthStateChanged(auth, (user) => {
-    setAuthUser(user);
-    setAuthReady(true);
-  }), []);
+  useEffect(() => {
+    if (isSandbox) { setAuthUser({ uid: ADMIN_UID } as User); setAuthReady(true); return; }
+    return onAuthStateChanged(auth, (user) => { setAuthUser(user); setAuthReady(true); });
+  }, []);
 
   const isAr = lang === 'ar';
 
@@ -111,6 +114,7 @@ export default function App() {
     }
   }, [lang, restaurant, isAr, viewMode]);
 
+  if (previewToken) return <MenuPreview token={previewToken} />;
   if (reportToken) return <PublicReport token={reportToken} />;
 
   // If in Admin Dashboard mode, render AdminDashboard
@@ -123,7 +127,7 @@ export default function App() {
           <section className="max-w-md rounded-2xl border border-zinc-800 bg-zinc-900 p-7 text-center">
             <h1 className="text-xl font-bold">{lang === 'ar' ? 'لا تملك صلاحية الإدارة' : 'Admin access denied'}</h1>
             <p className="mt-2 text-sm text-zinc-400">{lang === 'ar' ? 'هذا الحساب غير معتمد لإدارة المنصة.' : 'This account is not authorized to manage the platform.'}</p>
-            <button onClick={() => signOut(auth)} className="mt-5 rounded-lg bg-amber-400 px-4 py-2 font-bold text-zinc-950">{lang === 'ar' ? 'تسجيل الخروج' : 'Sign out'}</button>
+            <button onClick={() => isSandbox ? handleToggleView('client') : signOut(auth)} className="mt-5 rounded-lg bg-amber-400 px-4 py-2 font-bold text-zinc-950">{lang === 'ar' ? 'تسجيل الخروج' : 'Sign out'}</button>
           </section>
         </main>
       );
@@ -131,7 +135,7 @@ export default function App() {
     return (
       <>
         <div className="fixed bottom-3 left-3 z-[100]">
-          <button onClick={() => signOut(auth)} className="rounded-lg border border-zinc-700 bg-zinc-950/90 px-3 py-2 text-xs font-bold text-white shadow-lg">
+          <button onClick={() => isSandbox ? handleToggleView('client') : signOut(auth)} className="rounded-lg border border-zinc-700 bg-zinc-950/90 px-3 py-2 text-xs font-bold text-white shadow-lg">
             {lang === 'ar' ? 'تسجيل الخروج' : 'Sign out'}
           </button>
         </div>
@@ -156,6 +160,17 @@ export default function App() {
         onOpenAdmin={() => handleToggleView('admin')}
         lang={lang}
       />
+    );
+  }
+
+  if (restaurant.isActive === false) {
+    return (
+      <main dir={lang === 'ar' ? 'rtl' : 'ltr'} className="flex min-h-screen items-center justify-center bg-zinc-950 p-6 text-white">
+        <section className="w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-900 p-8 text-center">
+          <h1 className="text-xl font-bold">{isAr ? 'القائمة غير متاحة حاليًا' : 'Menu temporarily unavailable'}</h1>
+          <p className="mt-3 text-sm text-zinc-400">{isAr ? 'يرجى التواصل مع المطعم أو المقهى للاستفسار.' : 'Please contact the venue for details.'}</p>
+        </section>
+      </main>
     );
   }
 
@@ -232,11 +247,6 @@ export default function App() {
             {restaurant.slug}
           </span>
 
-          {restaurant.isActive === false && (
-            <span className="text-[10px] font-bold text-black bg-amber-400 px-2 py-0.5 rounded">
-              معطل مؤقتاً
-            </span>
-          )}
         </div>
 
         {/* Action: Open Admin Dashboard & Seed & Demo Switchers */}
@@ -277,14 +287,6 @@ export default function App() {
           </button>
         </div>
       </div>
-
-      {/* Notice if restaurant is inactive */}
-      {restaurant.isActive === false && (
-        <div className="bg-red-500 text-white text-xs font-bold py-2 px-4 text-center flex items-center justify-center gap-2">
-          <AlertCircle className="w-4 h-4" />
-          <span>تنبيه: هذا المطعم غير نشط حالياً في لوحة الإدارة</span>
-        </div>
-      )}
 
       {/* Header with Dynamic Restaurant Name, Logo & Categories */}
       <Header
@@ -369,3 +371,4 @@ export default function App() {
     </div>
   );
 }
+

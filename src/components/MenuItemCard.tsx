@@ -64,7 +64,7 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({
       <div className="w-20 h-20 flex-shrink-0 rounded-xl overflow-hidden bg-zinc-100 relative shadow-2xs">
         <img
           alt={title}
-          src={item.imageUrl}
+          src={item.imageUrl || undefined}
           loading="lazy"
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
         />

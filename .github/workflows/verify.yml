@@ -1,0 +1,60 @@
+name: Verify menu app
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-typecheck:
+    name: Typecheck and production build
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile
+      - name: TypeScript validation
+        run: bun run lint
+      - name: Test custom menu and preview data contract
+        run: bun run test
+      - name: Production build
+        run: bun run build
+      - name: Verify production HTML is generated
+        run: test -s dist/index.html && grep -q 'id="root"' dist/index.html
+
+
+  security-and-browser:
+    name: Firebase rules and browser workflows
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: oven-sh/setup-bun@v2
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:rules
+      - run: npm run test:ui

@@ -74,7 +74,7 @@ export const Header: React.FC<HeaderProps> = ({
           <img
             alt={restaurant.name}
             className="h-10 w-auto object-contain transition-transform hover:scale-105 duration-300"
-            src={restaurant.logoUrl}
+            src={restaurant.logoUrl || undefined}
           />
         )}
         <span className="font-en text-[17px] font-extrabold tracking-widest text-[#111111] uppercase">

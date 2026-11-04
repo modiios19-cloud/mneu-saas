@@ -1,5 +1,6 @@
+import { saveRestaurant } from '../../lib/menuRepository';
 import React, { useState, useEffect, useMemo } from 'react';
-import { collection, getDocs, doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc, updateDoc, setDoc } from '../../lib/dataStore';
 import { db } from '../../lib/firebase';
 import { RestaurantData, PlatformSettings as PlatformSettingsType } from '../../types/restaurant';
 import { VisualMenuEditor } from './VisualMenuEditor';
@@ -115,6 +116,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         setPlatformSettings({
           platformName: !data.platformName || data.platformName === 'WiseMenu' ? 'YCOAI' : data.platformName,
           platformLogoUrl: data.platformLogoUrl || '',
+          platformTagline: data.platformTagline || 'الشركة اليمنية للذكاء الاصطناعي',
+          platformSubtitle: data.platformSubtitle || 'قسم إدارة المطاعم',
+          publicBaseUrl: data.publicBaseUrl || '',
           allowedVenueTypes: data.allowedVenueTypes || [
             { id: 'restaurant', labelAr: 'مطاعم' },
             { id: 'cafe', labelAr: 'مقاهي' }
@@ -212,6 +216,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           name: d.name || docId,
           nameEn: d.nameEn || d.name,
           logoUrl: d.logoUrl || d.logo || '',
+          coverUrl: d.coverUrl || '',
+          stitchDesignCode: typeof d.stitchDesignCode === 'string' ? d.stitchDesignCode : '',
+          updatedAt: d.updatedAt || '',
           primaryColor: d.primaryColor || '#A33900',
           secondaryColor: d.secondaryColor || '#F4F4F5',
           type: d.type || (docId.includes('cafe') ? 'cafe' : 'restaurant'),
@@ -254,9 +261,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const updatedState = !restaurant.isActive;
     try {
       if (db) {
-        await updateDoc(doc(db, 'restaurants', restaurant.id), {
-          isActive: updatedState
-        });
+        await saveRestaurant(restaurant.id, { isActive: updatedState });
       }
       setRestaurants((prev) =>
         prev.map((r) => (r.id === restaurant.id ? { ...r, isActive: updatedState } : r))
@@ -323,7 +328,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         secondaryColor,
         currency,
         stitchDesignCode: newMenuThemeConfig,
-        isActive: true,
+        // New menus remain unavailable publicly until the owner approves them.
+        isActive: false,
         logoUrl: '',
         statusText: 'مفتوح للطلبات الآن',
         categories: initialCategories,
@@ -331,9 +337,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         contact: {}
       };
 
-      if (db) {
-        await setDoc(doc(db, 'restaurants', generatedSlug), newVenueDoc);
+      if (!db) throw new Error('Firestore connection unavailable');
+      const newVenueRef = doc(db, 'restaurants', generatedSlug);
+      if ((await getDoc(newVenueRef)).exists()) {
+        showToast('يوجد منيو بهذا المعرّف بالفعل. غيّر اسم المنشأة أو المعرّف قبل الإنشاء.');
+        return;
       }
+      await saveRestaurant(generatedSlug, newVenueDoc, { create: true });
 
       const dailyViews = generateMockTimeData(generatedSlug);
       const createdVenue: RestaurantData = {
@@ -375,9 +385,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     ];
     try {
       if (db) {
-        await updateDoc(doc(db, 'settings', 'general'), {
+        await setDoc(doc(db, 'settings', 'general'), {
           allowedVenueTypes: updatedTypes
-        });
+        }, { merge: true });
       }
       setPlatformSettings((prev) => ({
         ...prev,
@@ -1078,7 +1088,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <div className="relative shrink-0">
                             {item.logoUrl ? (
                               <img
-                                src={item.logoUrl}
+                                src={item.logoUrl || undefined}
                                 alt={item.name}
                                 className="w-10 h-10 rounded-xl object-cover bg-black border border-white/10"
                               />
@@ -1240,7 +1250,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <div className="flex items-center gap-3 px-2">
             {platformSettings.platformLogoUrl ? (
               <img
-                src={platformSettings.platformLogoUrl}
+                src={platformSettings.platformLogoUrl || undefined}
                 alt="شعار المنصة"
                 className="w-11 h-11 rounded-2xl object-contain bg-black border border-white/10"
               />
@@ -1253,8 +1263,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <span className="text-sm font-black tracking-wide text-[#F2D475]">
                 {platformSettings.platformName || 'YCOAI'}
               </span>
-              <span className="text-[8px] leading-3 text-zinc-400">الشركة اليمنية للذكاء الاصطناعي</span>
-              <span className="text-[9px] font-semibold leading-3 text-white">قسم إدارة المطاعم</span>
+              <span className="text-[8px] leading-3 text-zinc-400">{platformSettings.platformTagline || 'الشركة اليمنية للذكاء الاصطناعي'}</span>
+              <span className="text-[9px] font-semibold leading-3 text-white">{platformSettings.platformSubtitle || 'قسم إدارة المطاعم'}</span>
             </div>
             <span className="material-symbols-outlined mr-auto text-zinc-500 text-lg">verified_user</span>
           </div>
@@ -1669,7 +1679,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               <div className="w-14 h-14 rounded-2xl bg-[#1C1C1E] border border-white/10 flex items-center justify-center text-xl font-black text-[#F7E354] shadow-inner overflow-hidden flex-shrink-0">
                                 {v.logoUrl ? (
                                   <img
-                                    src={v.logoUrl}
+                                    src={v.logoUrl || undefined}
                                     alt={v.name}
                                     className="w-full h-full object-contain p-1"
                                   />
@@ -1967,11 +1977,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       {selectedForVisualEdit && (
         <VisualMenuEditor
           initialRestaurant={selectedForVisualEdit}
+          publicBaseUrl={platformSettings.publicBaseUrl || ''}
           onClose={() => setSelectedForVisualEdit(null)}
-          onSaved={async (updated: RestaurantData) => {
-            if (db) {
-              await updateDoc(doc(db, 'restaurants', updated.id), updated);
-            }
+          onSaved={(updated: RestaurantData) => {
+            // The visual editor already persisted the full menu document.
+            // An additional update with the UI snapshot can overwrite design and item data.
             setRestaurants((prev) =>
               prev.map((r) => (r.id === updated.id ? updated : r))
             );
@@ -1989,6 +1999,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       {selectedForQR && (
         <QRCodeModal
           restaurant={selectedForQR}
+          publicBaseUrl={platformSettings.publicBaseUrl}
           isOpen={Boolean(selectedForQR)}
           onClose={() => setSelectedForQR(null)}
         />
@@ -1996,3 +2007,4 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     </div>
   );
 };
+

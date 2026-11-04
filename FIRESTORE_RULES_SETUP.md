@@ -1,44 +1,13 @@
-# إعداد حماية لوحة الإدارة
+# Firestore security rollout — not deployed
 
-يحتوي هذا المشروع على شاشة دخول إدارية. في Firebase Authentication أنشئ حساب المدير يدويًا من تبويب **Users**، وتأكد أن UID للحساب هو UID المعتمد في `src/App.tsx`. لا تضف شاشة تسجيل حسابات عامة.
+Do not paste or deploy these rules to production without owner approval and a coordinated application rollout.
 
-بعد ذلك افتح **Firestore Database → Rules**، واستبدل القواعد المؤقتة بالقواعد التالية ثم اضغط **Publish**:
+The staging branch reads anonymous menus from `publicMenus/{id}`. Existing `restaurants/{id}` documents become administrator-only and retain all original owner/client data. Drafts, version history, settings and reports are private. Client preview snapshots support GET by unguessable token until expiry; anonymous listing and all anonymous writes are denied.
 
-```text
-rules_version = '2';
+Use `npm run test:rules` with Java 21+ to test the actual rules and SDK workflows against `demo-mneu-staging` local emulators. No production credentials are needed.
 
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /publicReports/{reportId} {
-      allow read: if resource.data.expiresAt is timestamp
-        && request.time < resource.data.expiresAt;
-      allow write: if request.auth != null
-        && request.auth.uid == 'VZMngh2pukhR8r2RoZpNIopt4R82';
-    }
+For a real separate staging project, configure VITE_APP_ENV=staging and its VITE_FIREBASE_* variables. The authorized administrative UID must match the reviewed rules. Keep production credentials out of staging.
 
-    match /restaurants/{restaurantId} {
-      allow read: if true;
-      allow write: if request.auth != null
-        && request.auth.uid == 'VZMngh2pukhR8r2RoZpNIopt4R82';
-    }
+`scripts/migrate-public-menus.ts` prepares public projections from existing records and defaults to dry-run. It never deletes or changes the original source records. Do not execute its production apply flag without explicit approval.
 
-    match /{document=**} {
-      allow read, write: if request.auth != null
-        && request.auth.uid == 'VZMngh2pukhR8r2RoZpNIopt4R82';
-    }
-  }
-}
-```
-
-تنتهي صلاحية روابط التقارير بعد 90 يومًا. قواعد Firestore الموجودة في المستودع لا تُنشر تلقائيًا؛ يجب نسخ الملف `firestore.rules` كاملًا إلى **Firebase Console → Firestore Database → Rules** ثم الضغط على **Publish** قبل إرسال أي تقرير. التقرير لا يعرض لقطة للمنيو. أرقام الزيارات والذروة الحالية تجريبية وليست قياسًا فعليًا؛ يجب ربط التتبع الحقيقي قبل إرسال تقارير إطلاق للعملاء. لا يوجد نظام طلبات أو إيرادات في التطبيق حاليًا.
-
-بهذا يستطيع الزوار قراءة وثائق المطاعم لعرض المنيو، بينما تقتصر بقية القراءة والكتابة على حساب المدير. لا تستخدم قاعدة عامة من نوع `request.auth != null` وحدها؛ فهي تسمح لأي حساب مسجل بالدخول إلى بيانات الإدارة.
-
-## اختبار الدخول
-
-1. افتح التطبيق مع `?admin=true`.
-2. سجّل الدخول بحساب المدير الذي أنشأته في Firebase Authentication.
-3. جرّب فتح لوحة الإدارة بحساب آخر؛ يجب أن تظهر رسالة منع الوصول.
-4. تحقق من أن حفظ بيانات المطعم يعمل بحساب المدير.
-
-لا تحفظ كلمة المرور في ملفات المشروع أو ترسلها في المحادثة.
+See STAGING.md for the backup, migration, rules and application rollout order. Deploying only the new rules while the old app still reads `restaurants` will interrupt the old public menus.
