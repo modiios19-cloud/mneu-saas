@@ -511,7 +511,38 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
       };
 
       const docRef = doc(db, 'restaurants', initialRestaurant.id);
-      await setDoc(docRef, payload, { merge: true });
+      const existing = await getDoc(docRef);
+      const batch = writeBatch(db);
+      if (existing.exists()) {
+        const previous = existing.data();
+        // Archive the previous published state atomically with the new publication.
+        // Only menu presentation data is stored; private owner information is excluded.
+        const publishedMenu = {
+          id: initialRestaurant.id,
+          slug: previous.slug || initialRestaurant.id,
+          name: previous.name || '',
+          nameEn: previous.nameEn || '',
+          logoUrl: previous.logoUrl || previous.logo || '',
+          coverUrl: previous.coverUrl || '',
+          primaryColor: previous.primaryColor || '#A33900',
+          secondaryColor: previous.secondaryColor || '',
+          currency: previous.currency || 'ر.س',
+          type: previous.type || 'restaurant',
+          statusText: previous.statusText || '',
+          statusTextEn: previous.statusTextEn || '',
+          isActive: previous.isActive !== false,
+          contact: previous.contact || {},
+          categories: previous.categories || [],
+          products: previous.products || previous.items || [],
+          stitchDesignCode: previous.stitchDesignCode || ''
+        };
+        batch.set(doc(collection(db, 'menuVersions', initialRestaurant.id, 'versions')), {
+          menu: publishedMenu,
+          archivedAt: serverTimestamp()
+        });
+      }
+      batch.set(docRef, payload, { merge: true });
+      await batch.commit();
 
       showToast('🎉 تم حفظ ونشر جميع التعديلات المرئية إلى Firebase بنجاح!');
       onSaved({ ...draft, id: initialRestaurant.id, slug: cleanSlug });
@@ -562,7 +593,7 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
         {/* Right Info & Back */}
         <div className="flex items-center gap-3">
           <button
-            onClick={onClose}
+            onClick={() => void handleExitEditor()}
             className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition-colors cursor-pointer"
             title="إلغاء والعودة للداشبورد"
           >
