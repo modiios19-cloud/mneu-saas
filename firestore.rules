@@ -11,6 +11,29 @@ service cloud.firestore {
         && request.auth.uid == 'VZMngh2pukhR8r2RoZpNIopt4R82';
     }
 
+    // Only the platform administrator can access editable drafts and past versions.
+    // A draft never changes the live customer menu until the administrator publishes it.
+    match /menuDrafts/{restaurantId} {
+      allow read, write: if request.auth != null
+        && request.auth.uid == 'VZMngh2pukhR8r2RoZpNIopt4R82';
+    }
+
+    match /menuVersions/{restaurantId}/versions/{versionId} {
+      allow read, write: if request.auth != null
+        && request.auth.uid == 'VZMngh2pukhR8r2RoZpNIopt4R82';
+    }
+
+    // Anyone holding a non-guessable preview link can GET the snapshot until expiry.
+    // Draft preview snapshots contain no owner/client management information.
+    match /menuPreviews/{previewId} {
+      allow get: if resource.data.expiresAt is timestamp
+        && request.time < resource.data.expiresAt
+        && resource.data.status == 'active';
+      allow list: if false;
+      allow create, update, delete: if request.auth != null
+        && request.auth.uid == 'VZMngh2pukhR8r2RoZpNIopt4R82';
+    }
+
     match /restaurants/{restaurantId} {
       allow read: if true;
       allow write: if request.auth != null
