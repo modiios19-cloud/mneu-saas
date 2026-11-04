@@ -115,6 +115,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         setPlatformSettings({
           platformName: !data.platformName || data.platformName === 'WiseMenu' ? 'YCOAI' : data.platformName,
           platformLogoUrl: data.platformLogoUrl || '',
+          publicBaseUrl: data.publicBaseUrl || '',
           allowedVenueTypes: data.allowedVenueTypes || [
             { id: 'restaurant', labelAr: 'مطاعم' },
             { id: 'cafe', labelAr: 'مقاهي' }
@@ -1974,6 +1975,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       {selectedForVisualEdit && (
         <VisualMenuEditor
           initialRestaurant={selectedForVisualEdit}
+          publicBaseUrl={platformSettings.publicBaseUrl || ''}
           onClose={() => setSelectedForVisualEdit(null)}
           onSaved={(updated: RestaurantData) => {
             // The visual editor already persisted the full menu document.
