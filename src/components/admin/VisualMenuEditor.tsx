@@ -708,6 +708,42 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
             <div className="text-left text-[10px] text-zinc-500">{new Blob([draft.stitchDesignCode || '']).size.toLocaleString()} / 400,000 بايت</div>
           </div>
       </details>
+      {draft.stitchDesignCode && (
+        <details className="z-30 border-b border-zinc-800 bg-zinc-950 px-4 py-3 text-white">
+          <summary className="cursor-pointer text-xs font-bold text-amber-300">
+            تعديل الأصناف والأسعار يدويًا — يعمل حتى لو تعذّر النقر داخل تصميم Stitch
+          </summary>
+          <div className="mx-auto mt-3 max-w-5xl space-y-3" dir="rtl">
+            <p className="text-xs leading-6 text-zinc-400">
+              تُحفظ هذه البيانات تلقائيًا في المسودة. لكي تظهر الأسعار الجديدة داخل تصميم HTML،
+              يجب أن يكون التصميم مرتبطًا ببيانات المنتجات (window.MENU_DATA)، لا أن يحتوي أسعارًا ثابتة مكتوبة في HTML.
+            </p>
+            {draft.products.map((item) => (
+              <div key={item.id} className="grid gap-2 rounded-xl border border-zinc-700 bg-zinc-900 p-3 md:grid-cols-[minmax(0,2fr)_minmax(110px,1fr)]">
+                <label className="text-xs text-zinc-300">اسم الصنف
+                  <input type="text" value={item.nameAr}
+                    onChange={(event) => handleUpdateItem(item.id, { nameAr: event.target.value })}
+                    className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 p-2 text-white"
+                    aria-label={`اسم صنف ${item.id}`}/>
+                </label>
+                <label className="text-xs text-zinc-300">السعر ({draft.currency || 'ر.س'})
+                  <input type="number" min="0" step="any" value={item.price}
+                    onChange={(event) => handleUpdateItem(item.id, { price: Number(event.target.value) || 0 })}
+                    className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 p-2 text-white"
+                    aria-label={`سعر صنف ${item.id}`}/>
+                </label>
+                <label className="text-xs text-zinc-300 md:col-span-2">رابط صورة الصنف
+                  <input type="url" value={item.imageUrl || ''}
+                    onChange={(event) => handleUpdateItem(item.id, { imageUrl: event.target.value })}
+                    placeholder="https://..."
+                    className="mt-1 block w-full rounded-lg border border-zinc-700 bg-zinc-800 p-2 text-white"
+                    aria-label={`صورة صنف ${item.id}`}/>
+                </label>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
       <div className={`flex-1 min-h-0 overflow-y-auto no-scrollbar p-2 sm:p-4 xl:p-6 bg-zinc-200/60 flex justify-center items-start`}>
         <div
           className={`${draft.stitchDesignCode ? 'hidden' : 'block'} w-full bg-white transition-all duration-300 shadow-2xl relative justify-self-center ${
