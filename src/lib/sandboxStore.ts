@@ -1,6 +1,20 @@
 import { Timestamp } from 'firebase/firestore';
 import { publicMenu } from './publicMenu';
 const key = 'mneu-sandbox-v2';
+
+// The original demonstration layout concatenated the dish name and price into one
+// unmarked element. Inline edits require an explicit binding for each value.
+// Upgrade only the known sample rendering snippet, retaining all existing product
+// data, prices, names and custom user HTML around it.
+const legacySampleProduct = 'a.textContent=p.nameAr+" — "+p.price;return a';
+const editableSampleProduct = 'let n=document.createElement("span");n.textContent=p.nameAr;n.setAttribute("data-menu-edit","product:"+p.id+":nameAr");a.appendChild(n);a.append(" — ");let price=document.createElement("span");price.textContent=String(p.price);price.setAttribute("data-menu-edit","product:"+p.id+":price");a.appendChild(price);return a';
+export function upgradeSampleMenuHtml(html: string): string {
+  if (!html.includes(legacySampleProduct) || !html.includes('<section id="products"></section>')) return html;
+  return html
+    .replace(legacySampleProduct, editableSampleProduct)
+    .replace('<h1 id="title"></h1>', '<h1 id="title" data-menu-edit="restaurant:name"></h1>');
+}
+
 let memory: Record<string, any> | undefined;
 const encode = (data: any): any => data instanceof Timestamp ? { __timestamp: data.toMillis() } : Array.isArray(data) ? data.map(encode) : data && typeof data === 'object' ? Object.fromEntries(Object.entries(data).filter(([,v]) => v !== undefined).map(([k,v]) => [k,encode(v)])) : data;
 const decode = (data: any): any => data?.__timestamp !== undefined ? Timestamp.fromMillis(data.__timestamp) : Array.isArray(data) ? data.map(decode) : data && typeof data === 'object' ? Object.fromEntries(Object.entries(data).map(([k,v]) => [k,decode(v)])) : data;
@@ -13,6 +27,25 @@ function store() {
       memory!['restaurants/sandbox-cafe'] = encode(venue);
       memory!['publicMenus/sandbox-cafe'] = encode(publicMenu('sandbox-cafe',venue));
       memory!['settings/general'] = {platformName:'Mneu — تجربة آمنة',publicBaseUrl:'',allowedVenueTypes:[{id:'restaurant',labelAr:'مطاعم'},{id:'cafe',labelAr:'مقاهي'}]};
+    }
+
+    // Existing AI Studio previews keep their sample records in localStorage;
+    // refresh only the built-in sample HTML, including an already saved draft.
+    // Never reset the restaurant, products, history, prices or arbitrary designs.
+    let migrated = false;
+    for (const recordPath of ['restaurants/sandbox-cafe', 'publicMenus/sandbox-cafe', 'menuDrafts/sandbox-cafe']) {
+      const record = memory![recordPath];
+      if (!record || typeof record !== 'object') continue;
+      const owner = recordPath.startsWith('menuDrafts/') ? record.menu : record;
+      if (!owner || typeof owner.stitchDesignCode !== 'string') continue;
+      const nextHtml = upgradeSampleMenuHtml(owner.stitchDesignCode);
+      if (nextHtml !== owner.stitchDesignCode) {
+        owner.stitchDesignCode = nextHtml;
+        migrated = true;
+      }
+    }
+    if (migrated && typeof localStorage !== 'undefined') {
+      localStorage.setItem(key, JSON.stringify(memory));
     }
   }
   return memory!;
