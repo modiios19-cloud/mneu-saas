@@ -695,6 +695,10 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
             className="rounded-xl border border-amber-400/40 px-3 py-2 text-xs font-bold text-amber-300 hover:bg-zinc-800 disabled:opacity-50">
             {shareBusy ? 'إنشاء المعاينة…' : 'معاينة وإرسال للعميل'}
           </button>
+          <label className="hidden items-center gap-1.5 text-[11px] text-white md:flex" title="يمكنك نشر منيو جديد مع إبقائه غير متاح للزوار">
+            <input type="checkbox" checked={draft.isActive !== false} onChange={(event) => updateField('isActive', event.target.checked)} />
+            تفعيل المنيو
+          </label>
           <button
             onClick={handleSaveToFirestore}
             disabled={saving}
