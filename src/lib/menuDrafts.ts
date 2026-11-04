@@ -1,9 +1,14 @@
 import type { RestaurantData } from '../types/restaurant';
 import type { StitchMenuData } from './stitchDesign';
 
+/** Strip undefined optional fields so Firestore accepts records loaded from older menus. */
+function withoutUndefined<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
 /** Explicitly select editable/public menu fields: never copy client contacts or internal analytics. */
 export function toEditableMenu(draft: RestaurantData) {
-  return {
+  return withoutUndefined({
     id: draft.id,
     slug: draft.slug,
     name: draft.name,
@@ -21,7 +26,7 @@ export function toEditableMenu(draft: RestaurantData) {
     categories: draft.categories.map((c) => ({ ...c })),
     products: draft.products.map((p) => ({ ...p })),
     stitchDesignCode: draft.stitchDesignCode || ''
-  };
+  });
 }
 
 export function toPreviewMenu(draft: RestaurantData): StitchMenuData {
