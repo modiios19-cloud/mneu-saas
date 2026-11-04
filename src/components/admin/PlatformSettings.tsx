@@ -34,6 +34,7 @@ export const PlatformSettings: React.FC<PlatformSettingsProps> = ({
 }) => {
   const [platformName, setPlatformName] = useState(settings.platformName || 'منصة إدارة المطاعم');
   const [platformLogoUrl, setPlatformLogoUrl] = useState(settings.platformLogoUrl || '');
+  const [publicBaseUrl, setPublicBaseUrl] = useState(settings.publicBaseUrl || '');
   const [compressingLogo, setCompressingLogo] = useState(false);
   const [venueTypes, setVenueTypes] = useState(
     settings.allowedVenueTypes || [
@@ -96,7 +97,8 @@ export const PlatformSettings: React.FC<PlatformSettingsProps> = ({
       const updated: PlatformSettingsType = {
         platformName: platformName.trim(),
         platformLogoUrl: platformLogoUrl.trim(),
-        allowedVenueTypes: venueTypes
+        allowedVenueTypes: venueTypes,
+        publicBaseUrl: publicBaseUrl.trim()
       };
 
       if (db) {
@@ -237,6 +239,20 @@ export const PlatformSettings: React.FC<PlatformSettingsProps> = ({
               </div>
             ))}
           </div>
+        </div>
+
+        {/* Preview URL is a platform setting, never a hardcoded URL. */}
+        <div className="rounded-3xl border border-zinc-200/80 bg-white p-6 space-y-2">
+          <h3 className="text-sm font-bold text-black">رابط الموقع العام لمعاينات العملاء</h3>
+          <p className="text-xs leading-5 text-zinc-500">بعد إعداد الاستضافة، أدخل عنوان HTTPS العام هنا. سيُستخدم تلقائيًا لإنشاء روابط المعاينة المرسلة عبر واتساب. روابط Google AI Studio الداخلية لا تصلح للعملاء.</p>
+          <input
+            type="url"
+            dir="ltr"
+            value={publicBaseUrl}
+            onChange={(e) => setPublicBaseUrl(e.target.value)}
+            placeholder="https://menu.example.com"
+            className="w-full rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-xs text-black"
+          />
         </div>
 
         {/* Submit Button (Amber/Gold with Black text) */}
