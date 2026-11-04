@@ -1,5 +1,6 @@
+import { saveRestaurant } from '../../lib/menuRepository';
 import React, { useEffect, useMemo, useState } from 'react';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc } from '../../lib/dataStore';
 import { ArrowUpRight, CalendarDays, FileBarChart2, MapPin, MessageCircle, Pencil, Phone, Search, X } from 'lucide-react';
 import { db } from '../../lib/firebase';
 import { RestaurantData } from '../../types/restaurant';
@@ -96,7 +97,7 @@ function ClientEditor({ restaurant, onClose, onToast, onSave }: { restaurant: Re
     if (localPhone && (!localPhone.startsWith('7') || localPhone.length !== 9)) { onToast('أدخل رقمًا يمنيًا من 9 أرقام يبدأ بـ 7'); return; }
     setSaving(true);
     const updated: RestaurantData = { ...restaurant, name: form.businessName.trim(), type: form.businessType, client: { name: form.clientName.trim(), phone: localPhone ? `+967${localPhone}` : '', location: form.clientLocation.trim(), locationUrl: form.clientLocationUrl.trim() }, businessInfo: form.businessInfo.trim(), contact: { ...restaurant.contact, phone: form.businessPhone.trim(), whatsapp: form.businessWhatsapp.trim(), locationNameAr: form.businessLocation.trim(), maps: form.businessMap.trim() } };
-    try { await updateDoc(doc(db, 'restaurants', restaurant.id), { name: updated.name, type: updated.type, client: updated.client, businessInfo: updated.businessInfo, contact: updated.contact }); onSave(updated); onToast('تم حفظ بيانات العميل والنشاط'); onClose(); }
+    try { await saveRestaurant(restaurant.id, { name: updated.name, type: updated.type, client: updated.client, businessInfo: updated.businessInfo, contact: updated.contact }); onSave(updated); onToast('تم حفظ بيانات العميل والنشاط'); onClose(); }
     catch (error) { console.error(error); onToast('تعذر حفظ البيانات. تحقق من قواعد Firestore.'); }
     finally { setSaving(false); }
   };
@@ -133,3 +134,4 @@ function ReportComposer({ restaurant, onClose, onToast, onPreview }: { restauran
     {isDemo && <p className="mt-3 text-center text-[11px] leading-5 text-amber-200">هذا عميل افتراضي؛ استخدم المعاينة فقط. لن يُنشأ رابط أو تُفتح محادثة واتساب.</p>}
   </div></div>;
 }
+

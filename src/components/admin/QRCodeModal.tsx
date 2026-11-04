@@ -1,3 +1,4 @@
+import { isSandbox } from '../../lib/environment';
 import React, { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import { X, Download, Copy, Check, ExternalLink, Printer } from 'lucide-react';
@@ -6,11 +7,13 @@ import { RestaurantData } from '../../types/restaurant';
 interface QRCodeModalProps {
   restaurant: RestaurantData | null;
   isOpen: boolean;
+  publicBaseUrl?: string;
   onClose: () => void;
 }
 
 export const QRCodeModal: React.FC<QRCodeModalProps> = ({
   restaurant,
+  publicBaseUrl,
   isOpen,
   onClose
 }) => {
@@ -20,12 +23,17 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
   const [copied, setCopied] = useState(false);
   const [dataUrl, setDataUrl] = useState<string>('');
 
-  const menuUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}/?id=${restaurant.slug}`
-    : `https://menu.app/?id=${restaurant.slug}`;
+  const base = isSandbox ? window.location.origin + window.location.pathname : publicBaseUrl || '';
+  let menuUrl = '';
+  try {
+    const url = new URL(base);
+    if (!isSandbox && url.protocol !== 'https:') throw new Error('HTTPS required');
+    url.search = ''; url.hash = ''; url.searchParams.set('id', restaurant.slug); menuUrl = url.toString();
+  } catch { /* Do not generate an invalid AI Studio/placeholder customer QR. */ }
+
 
   useEffect(() => {
-    if (canvasRef.current) {
+    if (canvasRef.current && menuUrl) {
       QRCode.toCanvas(
         canvasRef.current,
         menuUrl,
@@ -54,7 +62,7 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
   };
 
   const handleDownload = () => {
-    if (!dataUrl) return;
+    if (!dataUrl || !menuUrl) return;
     const link = document.createElement('a');
     link.download = `QR-${restaurant.slug}.png`;
     link.href = dataUrl;
@@ -77,6 +85,7 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
           <X className="w-5 h-5" />
         </button>
 
+        {!menuUrl && <p className="text-sm text-red-600">أضف رابط الموقع العام HTTPS من إعدادات المنصة لإنشاء QR صالح.</p>}
         {/* Header */}
         <div className="space-y-1 pt-2">
           <div className="flex items-center justify-center gap-2">
@@ -146,3 +155,4 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
     </div>
   );
 };
+

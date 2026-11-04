@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { doc, getDoc, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, Timestamp } from '../lib/dataStore';
 import { db } from '../lib/firebase';
 import { buildStitchDocument, type StitchMenuData } from '../lib/stitchDesign';
 
@@ -57,3 +57,4 @@ export function MenuPreview({ token }: { token: string }) {
     />
   </main>;
 }
+

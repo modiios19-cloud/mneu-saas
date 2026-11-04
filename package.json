@@ -8,7 +8,13 @@
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test": "bun test tests/unit",
+    "test:rules": "firebase emulators:exec --project demo-mneu-staging --only firestore \"sh scripts/test-emulators.sh\"",
+    "dev:sandbox": "vite --host=0.0.0.0 --port=3000",
+    "dev:emulator": "VITE_APP_ENV=emulator vite --host=0.0.0.0 --port=3000",
+    "emulators": "firebase emulators:start --project demo-mneu-staging --only auth,firestore",
+    "test:ui": "playwright test"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -25,13 +31,19 @@
     "vite": "^8.3.0"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^6.0.0",
+    "@playwright/test": "^1.58.0",
+    "@types/bun": "^1.4.4",
     "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "autoprefixer": "^10.4.21",
-    "esbuild": "^0.25.0",
+    "bun": "^1.3.0",
+    "esbuild": "^0.28.0",
+    "firebase-admin": "^14.5.0",
+    "firebase-tools": "^15.0.0",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.21.0",
     "typescript": "^7.0.2"

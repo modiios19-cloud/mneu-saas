@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { makePreviewUrl, toEditableMenu, toPreviewMenu, whatsappLink, whatsappPreviewMessage } from '../src/lib/menuDrafts.ts';
+import { makePreviewUrl, toEditableMenu, toPreviewMenu, whatsappLink, whatsappPreviewMessage } from '../../src/lib/menuDrafts.ts';
 
 const venue = {
   id: 'sample', slug: 'sample', name: 'مطعم الاختبار', nameEn: 'Test Venue',
@@ -54,3 +54,4 @@ describe('private drafts and safe customer previews', () => {
     expect(() => whatsappLink('abc', msg)).toThrow();
   });
 });
+

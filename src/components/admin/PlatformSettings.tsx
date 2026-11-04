@@ -1,5 +1,6 @@
+import { savePlatformSettings } from '../../lib/menuRepository';
 import React, { useEffect, useRef, useState } from 'react';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc } from '../../lib/dataStore';
 import { db } from '../../lib/firebase';
 import { PlatformSettings as PlatformSettingsType } from '../../types/restaurant';
 import { Save, Store, CheckCircle2, RefreshCw, Plus, Trash2, Sliders, Upload, X } from 'lucide-react';
@@ -34,6 +35,8 @@ export const PlatformSettings: React.FC<PlatformSettingsProps> = ({
 }) => {
   const [platformName, setPlatformName] = useState(settings.platformName || 'منصة إدارة المطاعم');
   const [platformLogoUrl, setPlatformLogoUrl] = useState(settings.platformLogoUrl || '');
+  const [platformTagline, setPlatformTagline] = useState(settings.platformTagline || 'الشركة اليمنية للذكاء الاصطناعي');
+  const [platformSubtitle, setPlatformSubtitle] = useState(settings.platformSubtitle || 'قسم إدارة المطاعم');
   const [publicBaseUrl, setPublicBaseUrl] = useState(settings.publicBaseUrl || '');
   const [compressingLogo, setCompressingLogo] = useState(false);
   const [venueTypes, setVenueTypes] = useState(
@@ -103,10 +106,12 @@ export const PlatformSettings: React.FC<PlatformSettingsProps> = ({
           platformName: platformName.trim(),
           platformLogoUrl: platformLogoUrl.trim(),
           allowedVenueTypes: venueTypes,
+          platformTagline: platformTagline.trim(),
+          platformSubtitle: platformSubtitle.trim(),
           publicBaseUrl: publicBaseUrl.trim()
         };
         if (!updated.platformName) { if (active) setAutoSaveStatus('error'); return; }
-        await setDoc(doc(db, 'settings', 'general'), updated, { merge: true });
+        await savePlatformSettings(updated);
         if (active) { setAutoSaveStatus('saved'); onSaved(updated); }
       } catch (error) {
         console.error('Settings autosave failed', error);
@@ -114,7 +119,7 @@ export const PlatformSettings: React.FC<PlatformSettingsProps> = ({
       }
     }, 1200);
     return () => { active = false; clearTimeout(timeout); };
-  }, [platformName, platformLogoUrl, venueTypes, publicBaseUrl]);
+  }, [platformName, platformLogoUrl, venueTypes, publicBaseUrl, platformTagline, platformSubtitle]);
 
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -129,12 +134,14 @@ export const PlatformSettings: React.FC<PlatformSettingsProps> = ({
         platformName: platformName.trim(),
         platformLogoUrl: platformLogoUrl.trim(),
         allowedVenueTypes: venueTypes,
-        publicBaseUrl: publicBaseUrl.trim()
+        platformTagline: platformTagline.trim(),
+          platformSubtitle: platformSubtitle.trim(),
+          publicBaseUrl: publicBaseUrl.trim()
       };
 
       if (!db) throw new Error('Firestore unavailable');
       const docRef = doc(db, 'settings', 'general');
-      await setDoc(docRef, updated, { merge: true });
+      await savePlatformSettings(updated);
 
       showToast('تم حفظ إعدادات المنصة في Firestore بنجاح');
       onSaved(updated);
@@ -176,11 +183,12 @@ export const PlatformSettings: React.FC<PlatformSettingsProps> = ({
           </h3>
 
           <div>
-            <label className="text-xs font-bold text-black block mb-1">
+            <label htmlFor="platform-name" className="text-xs font-bold text-black block mb-1">
               اسم المنصة (Platform Brand Name) *
             </label>
             <input
               type="text"
+              id="platform-name"
               value={platformName}
               onChange={(e) => setPlatformName(e.target.value)}
               placeholder="مثلاً: منصة قوائمي أو نظام المنيو الذكي"
@@ -286,6 +294,14 @@ export const PlatformSettings: React.FC<PlatformSettingsProps> = ({
           />
         </div>
 
+        <div className="space-y-3 rounded-3xl border border-zinc-200 bg-white p-6 text-black">
+          <label className="block text-xs font-bold">وصف المنصة
+            <input value={platformTagline} onChange={e=>setPlatformTagline(e.target.value)} className="mt-2 w-full rounded-xl border p-3" />
+          </label>
+          <label className="block text-xs font-bold">عنوان القسم
+            <input value={platformSubtitle} onChange={e=>setPlatformSubtitle(e.target.value)} className="mt-2 w-full rounded-xl border p-3" />
+          </label>
+        </div>
         {/* Submit Button (Amber/Gold with Black text) */}
         <div className="pt-2">
           <button
@@ -310,3 +326,4 @@ export const PlatformSettings: React.FC<PlatformSettingsProps> = ({
     </div>
   );
 };
+

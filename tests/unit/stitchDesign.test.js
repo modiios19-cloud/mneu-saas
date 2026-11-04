@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { buildStitchDocument } from '../src/lib/stitchDesign.ts';
+import { buildStitchDocument } from '../../src/lib/stitchDesign.ts';
 
 const template = '<!doctype html><html><head><meta charset="utf-8"></head><body><main id="menu"></main></body></html>';
 const data = {
@@ -44,3 +44,4 @@ describe('Stitch HTML bridge', () => {
     expect(output).toContain('window.MENU_DATA');
   });
 });
+

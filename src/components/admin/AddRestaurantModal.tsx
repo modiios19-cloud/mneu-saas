@@ -1,5 +1,6 @@
+import { saveRestaurant } from '../../lib/menuRepository';
 import React, { useState } from 'react';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc } from '../../lib/dataStore';
 import { db } from '../../lib/firebase';
 import { RestaurantData } from '../../types/restaurant';
 import { X, Plus, Store, Sparkles } from 'lucide-react';
@@ -113,10 +114,9 @@ export const AddRestaurantModal: React.FC<AddRestaurantModalProps> = ({
         createdAt: new Date().toISOString()
       };
 
-      const docRef = doc(db, 'restaurants', cleanSlug);
-      await setDoc(docRef, payload, { merge: true });
+      await saveRestaurant(cleanSlug, { ...payload, isActive: false }, { create: true });
 
-      onCreated(newRestaurant);
+      onCreated({ ...newRestaurant, isActive: false });
       onClose();
     } catch (err: any) {
       console.error("Error creating restaurant:", err);
@@ -241,3 +241,4 @@ export const AddRestaurantModal: React.FC<AddRestaurantModalProps> = ({
     </div>
   );
 };
+

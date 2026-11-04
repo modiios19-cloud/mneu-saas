@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs } from '../lib/dataStore';
 import { db, isFirebaseConfigured } from '../lib/firebase';
 import { RestaurantData, MenuItem, Category } from '../types/restaurant';
 
@@ -176,31 +176,12 @@ export function useRestaurant(slug: string | null) {
     // القراءة من Firestore
     if (isFirebaseConfigured && db) {
       try {
-        const docRef = doc(db, 'restaurants', cleanSlug);
+        const docRef = doc(db, 'publicMenus', cleanSlug);
         const docSnap = await getDoc(docRef);
 
         if (docSnap.exists()) {
           const normalized = normalizeRestaurantData(docSnap.id, docSnap.data());
           setData(normalized);
-          setLoading(false);
-          return;
-        }
-
-        // فحص بالاستعلام إذا كان slug مخزن كحقل
-        const q = query(collection(db, 'restaurants'), where('slug', '==', cleanSlug));
-        const querySnapshot = await getDocs(q);
-
-        if (!querySnapshot.empty) {
-          const firstDoc = querySnapshot.docs[0];
-          const normalized = normalizeRestaurantData(firstDoc.id, firstDoc.data());
-          setData(normalized);
-          setLoading(false);
-          return;
-        }
-
-        // إذا كان المعرف backfries ولم يُزرع بعد في Firestore، نتيح استخدام النموذج التجريبي
-        if (DEMO_RESTAURANTS[cleanSlug]) {
-          setData(DEMO_RESTAURANTS[cleanSlug]);
           setLoading(false);
           return;
         }
@@ -211,11 +192,6 @@ export function useRestaurant(slug: string | null) {
         return;
       } catch (err: any) {
         console.error('Error fetching restaurant from Firestore:', err);
-        if (DEMO_RESTAURANTS[cleanSlug]) {
-          setData(DEMO_RESTAURANTS[cleanSlug]);
-          setLoading(false);
-          return;
-        }
         setError(`حدث خطأ أثناء جلب بيانات المطعم من Firestore: ${err?.message || 'خطأ غير معروف'}`);
         setData(null);
         setLoading(false);
@@ -249,3 +225,4 @@ export function useRestaurant(slug: string | null) {
     reload: fetchRestaurant
   };
 }
+

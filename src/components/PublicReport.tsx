@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc } from '../lib/dataStore';
 import { BarChart3, CalendarDays, CheckCircle2, FileText, Utensils, X, Clock3, TrendingUp } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { DailyReportStat } from '../lib/reportAnalytics';
@@ -49,3 +49,4 @@ function ReportPage({ report }: { report: ReportData }) {
     <footer className="py-7 text-center text-xs text-zinc-400">تم إنشاء هذا التقرير من منصة mneu-saas</footer>
   </div></main>;
 }
+

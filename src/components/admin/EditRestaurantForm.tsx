@@ -1,6 +1,7 @@
+import { saveRestaurant } from '../../lib/menuRepository';
 import React, { useState } from 'react';
 import { RestaurantData, Category, MenuItem, ItemBadge } from '../../types/restaurant';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc } from '../../lib/dataStore';
 import { db } from '../../lib/firebase';
 import {
   X,
@@ -119,8 +120,8 @@ export const EditRestaurantForm: React.FC<EditRestaurantFormProps> = ({
         updatedAt: new Date().toISOString()
       };
 
-      const docRef = doc(db, 'restaurants', formData.slug);
-      await setDoc(docRef, firestorePayload, { merge: true });
+      if (formData.slug !== restaurant.id) throw new Error('تغيير معرّف الرابط غير مدعوم');
+      await saveRestaurant(restaurant.id, firestorePayload, { archive: true });
 
       showToast("✅ تم حفظ وتحديث بيانات المطعم في Firestore بنجاح!");
       onSaved(formData);
@@ -972,3 +973,4 @@ export const EditRestaurantForm: React.FC<EditRestaurantFormProps> = ({
     </div>
   );
 };
+

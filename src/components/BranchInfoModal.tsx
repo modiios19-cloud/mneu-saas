@@ -136,3 +136,4 @@ export const BranchInfoModal: React.FC<BranchInfoModalProps> = ({
     </div>
   );
 };
+

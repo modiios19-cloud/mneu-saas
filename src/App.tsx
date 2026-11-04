@@ -1,3 +1,4 @@
+import { isSandbox, adminUid } from './lib/environment';
 import React, { useState, useEffect } from 'react';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
 import { useRestaurant } from './hooks/useRestaurant';
@@ -18,7 +19,7 @@ import { MenuPreview } from './components/MenuPreview';
 import { buildStitchDocument } from './lib/stitchDesign';
 
 // Client-side convenience only; Firestore rules enforce this UID server-side.
-const ADMIN_UID = 'VZMngh2pukhR8r2RoZpNIopt4R82';
+const ADMIN_UID = adminUid;
 
 // Helper to get slug from URL query params: ?id=xxx or ?restaurant=xxx or ?slug=xxx
 function getInitialSlug(): string {
@@ -49,10 +50,10 @@ export default function App() {
   // Hook to fetch restaurant data dynamically from Firebase Firestore
   const { data: restaurant, loading, error, reload } = useRestaurant(slug);
 
-  useEffect(() => onAuthStateChanged(auth, (user) => {
-    setAuthUser(user);
-    setAuthReady(true);
-  }), []);
+  useEffect(() => {
+    if (isSandbox) { setAuthUser({ uid: ADMIN_UID } as User); setAuthReady(true); return; }
+    return onAuthStateChanged(auth, (user) => { setAuthUser(user); setAuthReady(true); });
+  }, []);
 
   const isAr = lang === 'ar';
 
@@ -126,7 +127,7 @@ export default function App() {
           <section className="max-w-md rounded-2xl border border-zinc-800 bg-zinc-900 p-7 text-center">
             <h1 className="text-xl font-bold">{lang === 'ar' ? 'لا تملك صلاحية الإدارة' : 'Admin access denied'}</h1>
             <p className="mt-2 text-sm text-zinc-400">{lang === 'ar' ? 'هذا الحساب غير معتمد لإدارة المنصة.' : 'This account is not authorized to manage the platform.'}</p>
-            <button onClick={() => signOut(auth)} className="mt-5 rounded-lg bg-amber-400 px-4 py-2 font-bold text-zinc-950">{lang === 'ar' ? 'تسجيل الخروج' : 'Sign out'}</button>
+            <button onClick={() => isSandbox ? handleToggleView('client') : signOut(auth)} className="mt-5 rounded-lg bg-amber-400 px-4 py-2 font-bold text-zinc-950">{lang === 'ar' ? 'تسجيل الخروج' : 'Sign out'}</button>
           </section>
         </main>
       );
@@ -134,7 +135,7 @@ export default function App() {
     return (
       <>
         <div className="fixed bottom-3 left-3 z-[100]">
-          <button onClick={() => signOut(auth)} className="rounded-lg border border-zinc-700 bg-zinc-950/90 px-3 py-2 text-xs font-bold text-white shadow-lg">
+          <button onClick={() => isSandbox ? handleToggleView('client') : signOut(auth)} className="rounded-lg border border-zinc-700 bg-zinc-950/90 px-3 py-2 text-xs font-bold text-white shadow-lg">
             {lang === 'ar' ? 'تسجيل الخروج' : 'Sign out'}
           </button>
         </div>
@@ -370,3 +371,4 @@ export default function App() {
     </div>
   );
 }
+

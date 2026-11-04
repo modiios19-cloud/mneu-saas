@@ -90,3 +90,4 @@ body {
 .pt-safe {
   padding-top: env(safe-area-inset-top, 0px);
 }
+

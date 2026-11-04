@@ -1,3 +1,4 @@
+import { publicMenu } from './publicMenu';
 import type { RestaurantData } from '../types/restaurant';
 import type { StitchMenuData } from './stitchDesign';
 
@@ -8,30 +9,12 @@ function withoutUndefined<T>(value: T): T {
 
 /** Explicitly select editable/public menu fields: never copy client contacts or internal analytics. */
 export function toEditableMenu(draft: RestaurantData) {
-  return withoutUndefined({
-    id: draft.id,
-    slug: draft.slug,
-    name: draft.name,
-    nameEn: draft.nameEn || '',
-    logoUrl: draft.logoUrl || '',
-    coverUrl: draft.coverUrl || '',
-    primaryColor: draft.primaryColor,
-    secondaryColor: draft.secondaryColor || '',
-    currency: draft.currency || 'ر.س',
-    type: draft.type || 'restaurant',
-    statusText: draft.statusText || '',
-    statusTextEn: draft.statusTextEn || '',
-    isActive: draft.isActive !== false,
-    contact: { ...draft.contact },
-    categories: draft.categories.map((c) => ({ ...c })),
-    products: draft.products.map((p) => ({ ...p })),
-    stitchDesignCode: draft.stitchDesignCode || ''
-  });
+  return publicMenu(draft.id, draft);
 }
 
 export function toPreviewMenu(draft: RestaurantData): StitchMenuData {
   const menu = toEditableMenu(draft);
-  return {
+  return withoutUndefined({
     restaurant: {
       id: menu.id,
       slug: menu.slug,
@@ -49,7 +32,7 @@ export function toPreviewMenu(draft: RestaurantData): StitchMenuData {
     products: menu.products,
     offers: menu.products.filter((product) => product.badge === 'offer'),
     updatedAt: null
-  };
+  });
 }
 
 export function makePreviewUrl(baseUrl: string, token: string): string {
@@ -79,3 +62,4 @@ export function whatsappLink(phone: string, message: string): string {
   if (digits.length < 8 || digits.length > 15) throw new Error('يرجى إدخال رقم واتساب العميل بالصيغة الدولية.');
   return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
 }
+

@@ -1,5 +1,6 @@
+import { saveRestaurant } from '../../lib/menuRepository';
 import React, { useState, useEffect, useMemo } from 'react';
-import { collection, getDocs, doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc, updateDoc, setDoc } from '../../lib/dataStore';
 import { db } from '../../lib/firebase';
 import { RestaurantData, PlatformSettings as PlatformSettingsType } from '../../types/restaurant';
 import { VisualMenuEditor } from './VisualMenuEditor';
@@ -115,6 +116,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         setPlatformSettings({
           platformName: !data.platformName || data.platformName === 'WiseMenu' ? 'YCOAI' : data.platformName,
           platformLogoUrl: data.platformLogoUrl || '',
+          platformTagline: data.platformTagline || 'الشركة اليمنية للذكاء الاصطناعي',
+          platformSubtitle: data.platformSubtitle || 'قسم إدارة المطاعم',
           publicBaseUrl: data.publicBaseUrl || '',
           allowedVenueTypes: data.allowedVenueTypes || [
             { id: 'restaurant', labelAr: 'مطاعم' },
@@ -258,9 +261,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const updatedState = !restaurant.isActive;
     try {
       if (db) {
-        await updateDoc(doc(db, 'restaurants', restaurant.id), {
-          isActive: updatedState
-        });
+        await saveRestaurant(restaurant.id, { isActive: updatedState });
       }
       setRestaurants((prev) =>
         prev.map((r) => (r.id === restaurant.id ? { ...r, isActive: updatedState } : r))
@@ -342,7 +343,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         showToast('يوجد منيو بهذا المعرّف بالفعل. غيّر اسم المنشأة أو المعرّف قبل الإنشاء.');
         return;
       }
-      await setDoc(newVenueRef, newVenueDoc);
+      await saveRestaurant(generatedSlug, newVenueDoc, { create: true });
 
       const dailyViews = generateMockTimeData(generatedSlug);
       const createdVenue: RestaurantData = {
@@ -384,9 +385,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     ];
     try {
       if (db) {
-        await updateDoc(doc(db, 'settings', 'general'), {
+        await setDoc(doc(db, 'settings', 'general'), {
           allowedVenueTypes: updatedTypes
-        });
+        }, { merge: true });
       }
       setPlatformSettings((prev) => ({
         ...prev,
@@ -1262,8 +1263,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <span className="text-sm font-black tracking-wide text-[#F2D475]">
                 {platformSettings.platformName || 'YCOAI'}
               </span>
-              <span className="text-[8px] leading-3 text-zinc-400">الشركة اليمنية للذكاء الاصطناعي</span>
-              <span className="text-[9px] font-semibold leading-3 text-white">قسم إدارة المطاعم</span>
+              <span className="text-[8px] leading-3 text-zinc-400">{platformSettings.platformTagline || 'الشركة اليمنية للذكاء الاصطناعي'}</span>
+              <span className="text-[9px] font-semibold leading-3 text-white">{platformSettings.platformSubtitle || 'قسم إدارة المطاعم'}</span>
             </div>
             <span className="material-symbols-outlined mr-auto text-zinc-500 text-lg">verified_user</span>
           </div>
@@ -1998,6 +1999,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       {selectedForQR && (
         <QRCodeModal
           restaurant={selectedForQR}
+          publicBaseUrl={platformSettings.publicBaseUrl}
           isOpen={Boolean(selectedForQR)}
           onClose={() => setSelectedForQR(null)}
         />
@@ -2005,3 +2007,4 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     </div>
   );
 };
+

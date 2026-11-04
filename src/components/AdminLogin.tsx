@@ -205,3 +205,4 @@ export const AdminLogin: React.FC<Props> = ({ lang }) => {
     </main>
   );
 };
+
