@@ -1,6 +1,6 @@
-# Stitch menu design handoff
+# HTML menu design handoff (any source)
 
-The dashboard accepts a **complete, self-contained HTML document**, not a React/TSX component or a JSON theme object. The document is saved as `stitchDesignCode` on the restaurant record and shown in a sandboxed iframe.
+The dashboard accepts a **complete HTML document from any source**, not a React/TSX component or a JSON theme object. Paste the code or upload a .html/.htm file. Prefer inline CSS and JavaScript, lightweight images, and publicly accessible asset URLs: local relative files cannot be uploaded with the HTML. The 400,000-byte limit covers HTML code only; external images, fonts, and scripts add to the visitor’s download size. Only use trusted code. The document is saved as `stitchDesignCode` on the restaurant record and shown in a sandboxed iframe.
 
 ## Required data contract
 
@@ -12,7 +12,8 @@ Before the design HTML runs, the public menu defines `window.MENU_DATA` with thi
     id, slug, name, nameEn, logoUrl, primaryColor, secondaryColor,
     currency, type, contact, statusText
   },
-  categories: [{ id, labelAr, labelEn, sublabelEn, isActive }],
+  menuGroups: [{ id, labelAr, labelEn }], // optional: e.g. breakfast, lunch, dinner
+  categories: [{ id, labelAr, labelEn, sublabelEn, isActive, menuGroupId }],
   products: [{
     id, categoryId, nameAr, nameEn, descriptionAr, descriptionEn,
     price, calories, imageUrl, isPopular, isSpicy, isVegetarian,
@@ -23,7 +24,7 @@ Before the design HTML runs, the public menu defines `window.MENU_DATA` with thi
 }
 ```
 
-The design must render the current `window.MENU_DATA` values, including empty category/product arrays. Do not bake restaurant-specific text, prices, image URLs, or logo into the markup. Contact links are available under `restaurant.contact` (phone, whatsapp, maps, instagram, tiktok, locationNameAr, workingHoursAr and English variants). Listen for `menu-data-update` and re-render without reloading. In the dashboard, the Stitch design itself is the editor: the owner clicks a marked text or image in the design and edits it in place.
+The design must render the current `window.MENU_DATA` values, including empty category/product arrays. Do not bake restaurant-specific text, prices, image URLs, or logo into the markup. Contact links are available under `restaurant.contact` (phone, whatsapp, maps, instagram, facebook, tiktok, locationNameAr, workingHoursAr and English variants). Listen for `menu-data-update` and re-render without reloading. In the dashboard, the HTML design itself is the editor: the owner clicks a marked text or image in the design and edits it in place.
 
 ## Direct editing markers
 
@@ -43,12 +44,12 @@ Add `data-menu-edit` to each text or image element that should be editable. Use 
 
 For text, put the marker on the element that displays the data. For images, put it directly on the `<img>`. The dashboard enables in-place editing in the iframe and saves edits into the corresponding menu data field. Continue rendering values from `window.MENU_DATA`, and listen for `menu-data-update` to reflect edits immediately.
 
-## Copy this prompt into Stitch
+## Copy this prompt into any design tool or AI assistant
 
 Attach the restaurant's logo, colors, fonts, and visual references, then paste this prompt:
 
 ```text
-Create the visual template for a polished, responsive restaurant menu as one complete standalone HTML document. Stitch's job is only to create the design and connect its visible content elements to the data fields described below. I will paste this HTML into my menu-management dashboard; I will enter and manage the real restaurant details, categories, dishes, prices, descriptions, and photos there. The dashboard renders the design in an iframe and provides the editing behavior. Do not build an admin/editor interface into the menu design. Follow the attached restaurant identity and design references closely; keep the layout, typography, colors, spacing, cards, and decorative styling as part of the design.
+Create the visual template for a polished, responsive restaurant menu as one complete standalone HTML document. Your job is only to create the design and connect its visible content elements to the data fields described below. I will paste this HTML into my menu-management dashboard; I will enter and manage the real restaurant details, categories, dishes, prices, descriptions, and photos there. The dashboard renders the design in an iframe and provides the editing behavior. Do not build an admin/editor interface into the menu design. Follow the attached restaurant identity and design references closely; keep the layout, typography, colors, spacing, cards, and decorative styling as part of the design.
 
 TECHNICAL OUTPUT
 - Return the complete HTML document, including <!doctype html>, <html>, <head>, <style>, and plain JavaScript. Do not return React, JSX, a screenshot, a mockup, or explanatory text.
@@ -58,13 +59,14 @@ TECHNICAL OUTPUT
 - Render an elegant empty state when categories or products are empty. Do not insert demo dishes or sample prices.
 
 DIRECT EDITING IS REQUIRED
-The dashboard (not Stitch) handles editing. The owner edits text and images by clicking them in the design itself. Add a data-menu-edit attribute to every visible, data-driven text or image element so the dashboard can connect each click to its field. Put the marker on the actual element the owner clicks, not on a distant wrapper. Use these exact key formats:
+The dashboard (not the design tool) handles editing. The owner edits text and images by clicking them in the design itself. Add a data-menu-edit attribute to every visible, data-driven text or image element so the dashboard can connect each click to its field. Put the marker on the actual element the owner clicks, not on a distant wrapper. Use these exact key formats:
   Restaurant name: data-menu-edit="restaurant:name"
   English restaurant name: data-menu-edit="restaurant:nameEn"
   Restaurant logo <img>: data-menu-edit="restaurant:logoUrl"
   Contact phone: data-menu-edit="contact:phone"
   Contact WhatsApp: data-menu-edit="contact:whatsapp"
   Contact address: data-menu-edit="contact:locationNameAr"
+  Facebook: data-menu-edit="contact:facebook"
   Category Arabic name: data-menu-edit="category:<category-id>:labelAr"
   Category English name: data-menu-edit="category:<category-id>:labelEn"
   Product Arabic name: data-menu-edit="product:<product-id>:nameAr"
@@ -89,4 +91,7 @@ Keep navigation, category selection, phone/WhatsApp links, and other menu intera
 
 ## Storage and editing
 
-Menu content (name, logo, categories, products, offers, prices, images and contact links) remains in the restaurant document and is edited in the visual menu editor. Replacing the Stitch HTML changes the visual layer; it does not replace the menu content. The design is size-limited to 400 KB so the combined Firestore document stays below the document-size ceiling. Large photos and font files should be hosted and referenced by URL.
+Menu content (name, logo, categories, products, offers, prices, images and contact links) remains in the restaurant document and is edited in the visual menu editor. Replacing the design HTML changes the visual layer; it does not replace the menu content. The design is size-limited to 400 KB so the combined Firestore document stays below the document-size ceiling. Large photos and font files should be hosted and referenced by URL.
+
+## Optional internal menu groups
+`menuGroups` may contain named menus such as breakfast, lunch, and dinner within the same restaurant. Categories may reference `menuGroupId`. Custom designs must render group navigation themselves; old designs remain compatible without it.

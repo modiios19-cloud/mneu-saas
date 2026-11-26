@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { collection, getDocs, doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc, updateDoc, setDoc, runTransaction } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { RestaurantData, PlatformSettings as PlatformSettingsType } from '../../types/restaurant';
 import { VisualMenuEditor } from './VisualMenuEditor';
@@ -8,6 +8,10 @@ import { PlatformSettings } from './PlatformSettings';
 import { QRCodeModal } from './QRCodeModal';
 import { AnalyticsTab, DateFilterType } from './AnalyticsTab';
 import { CustomerReports } from './CustomerReports';
+import { HtmlDesignInput, MAX_HTML_DESIGN_BYTES } from './HtmlDesignInput';
+import { parseMenuImport } from '../../lib/importMenuData';
+import { DemoMenuPreview } from './DemoMenuPreview';
+import { createMenuError } from '../../lib/createMenuErrors';
 
 export interface DailyStatRecord {
   date: string;
@@ -89,6 +93,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   // Modals / Visual Editor state
   const [selectedForVisualEdit, setSelectedForVisualEdit] = useState<RestaurantData | null>(null);
+  const [openQrInitially, setOpenQrInitially] = useState(false);
   const [selectedForQR, setSelectedForQR] = useState<RestaurantData | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -97,7 +102,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [newMenuName, setNewMenuName] = useState<string>('');
   const [newMenuType, setNewMenuType] = useState<string>('restaurant');
   const [newMenuThemeConfig, setNewMenuThemeConfig] = useState<string>('');
+  const [demoMenuData, setDemoMenuData] = useState<ReturnType<typeof parseMenuImport> | null>(null);
+  const [loadingDemo, setLoadingDemo] = useState(false);
+  const [showDemoPreview, setShowDemoPreview] = useState(false);
   const [isSubmittingNewMenu, setIsSubmittingNewMenu] = useState<boolean>(false);
+  const [createError, setCreateError] = useState('');
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -115,6 +124,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         setPlatformSettings({
           platformName: !data.platformName || data.platformName === 'WiseMenu' ? 'YCOAI' : data.platformName,
           platformLogoUrl: data.platformLogoUrl || '',
+          publicBaseUrl: data.publicBaseUrl || '',
           allowedVenueTypes: data.allowedVenueTypes || [
             { id: 'restaurant', labelAr: 'مطاعم' },
             { id: 'cafe', labelAr: 'مقاهي' }
@@ -153,11 +163,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           descriptionAr: item.descriptionAr || item.description || '',
           descriptionEn: item.descriptionEn || item.description || '',
           price: Number(item.price) || 0,
+          originalPrice: item.originalPrice != null ? Number(item.originalPrice) : undefined,
           calories: item.calories,
           imageUrl: item.imageUrl || item.image || '',
           badge: item.badge,
           isPopular: item.isPopular || item.badge === 'popular' || false,
           isSpicy: item.isSpicy || false,
+          isVegetarian: item.isVegetarian || false,
           isSoldOut: item.isSoldOut || false
         }));
 
@@ -212,6 +224,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           name: d.name || docId,
           nameEn: d.nameEn || d.name,
           logoUrl: d.logoUrl || d.logo || '',
+          // Preserve saved HTML when reopening an existing menu in the editor.
+          stitchDesignCode: typeof d.stitchDesignCode === 'string' ? d.stitchDesignCode : '',
           primaryColor: d.primaryColor || '#A33900',
           secondaryColor: d.secondaryColor || '#F4F4F5',
           type: d.type || (docId.includes('cafe') ? 'cafe' : 'restaurant'),
@@ -228,6 +242,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           views: resolvedViews,
           analytics: defaultAnalytics,
           categories,
+          menuGroups: Array.isArray(d.menuGroups) ? d.menuGroups : [],
           products,
           contact: d.contact || {},
           client: d.client || {},
@@ -273,27 +288,48 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setNewMenuName('');
     setNewMenuType(initialType);
     setNewMenuThemeConfig('');
+    setDemoMenuData(null);
+    setCreateError('');
     setIsAddMenuModalOpen(true);
+  };
+
+  // A ready-made, clearly fictional example; nothing is written until the user creates the menu.
+  const handleLoadDemoMenu = async () => {
+    setCreateError('');
+    setLoadingDemo(true);
+    try {
+      const [html, data] = await Promise.all([import('../../demo/sana-menu.html?raw'), import('../../demo/sana-menu.json?raw')]);
+      setNewMenuName('شاورما سنا التجريبي');
+      setNewMenuType('restaurant');
+      setNewMenuThemeConfig(html.default);
+      setDemoMenuData(parseMenuImport(data.default));
+      showToast('تم تجهيز النموذج؛ راجع بياناته ثم اضغط إنشاء إذا رغبت');
+    } catch (err) {
+      console.error(err);
+      setCreateError('تعذر تحميل النموذج التجريبي. تحقق من اتصالك ثم حاول مرة أخرى.');
+    } finally { setLoadingDemo(false); }
   };
 
   // 6. Submit Add Menu Modal with Custom Theme
   const handleCreateNewVenueWithTheme = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingNewMenu) return;
+    setCreateError('');
     if (!newMenuName.trim()) {
-      alert('يرجى كتابة اسم المنشأة أولاً.');
+      setCreateError('اكتب اسم المنشأة أولًا، أو اضغط «تجهيز المنيو التجريبي» لملء البيانات.');
       return;
     }
 
     if (!newMenuThemeConfig.trim()) {
-      alert('ألصق كود HTML الكامل الذي صدّرته من Stitch.');
+      setCreateError('أضف تصميم HTML أو اضغط «تجهيز المنيو التجريبي» لملء التصميم.');
       return;
     }
     if (!/<!doctype\s+html|<html[\s>]/i.test(newMenuThemeConfig)) {
-      alert('ألصق مستند HTML كاملًا من Stitch، وليس JSX أو إعدادات JSON.');
+      setCreateError('استخدم مستند HTML كاملًا، وليس JSX أو إعدادات JSON.');
       return;
     }
-    if (new Blob([newMenuThemeConfig]).size > 400_000) {
-      alert('حجم كود التصميم يتجاوز الحد الآمن للحفظ. قلّل حجمه أو استضف الصور والخطوط واربطها بروابطها.');
+    if (new Blob([newMenuThemeConfig]).size > MAX_HTML_DESIGN_BYTES) {
+      setCreateError('حجم كود التصميم يتجاوز 400 كيلوبايت؛ قلّل حجمه قبل الإنشاء.');
       return;
     }
 
@@ -315,24 +351,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       const initialProducts: RestaurantData['products'] = [];
 
       const newVenueDoc: Partial<RestaurantData> = {
+        ...demoMenuData,
         name: newMenuName.trim(),
-        nameEn: newMenuName.trim(),
+        nameEn: demoMenuData?.nameEn || newMenuName.trim(),
         slug: generatedSlug,
         type: newMenuType as any,
-        primaryColor,
-        secondaryColor,
-        currency,
+        primaryColor: demoMenuData?.primaryColor || primaryColor,
+        secondaryColor: demoMenuData?.secondaryColor || secondaryColor,
+        currency: demoMenuData?.currency || currency,
         stitchDesignCode: newMenuThemeConfig,
         isActive: true,
-        logoUrl: '',
-        statusText: 'مفتوح للطلبات الآن',
-        categories: initialCategories,
-        products: initialProducts,
-        contact: {}
+        logoUrl: demoMenuData?.logoUrl || '',
+        statusText: demoMenuData?.statusText || 'مفتوح للطلبات الآن',
+        categories: demoMenuData?.categories || initialCategories,
+        products: demoMenuData?.products || initialProducts,
+        contact: demoMenuData?.contact || {}
       };
 
-      if (db) {
-        await setDoc(doc(db, 'restaurants', generatedSlug), newVenueDoc);
+      if (!db) throw new Error('قاعدة بيانات Firebase غير متاحة.');
+      {
+        await runTransaction(db, async (transaction) => {
+          const ref = doc(db, 'restaurants', generatedSlug);
+          if ((await transaction.get(ref)).exists()) throw new Error('يوجد منيو بهذا المعرف بالفعل؛ اختر اسمًا مختلفًا.');
+          transaction.set(ref, newVenueDoc);
+        });
       }
 
       const dailyViews = generateMockTimeData(generatedSlug);
@@ -357,10 +399,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       setRestaurants((prev) => [createdVenue, ...prev]);
       setIsAddMenuModalOpen(false);
       showToast(`تم إنشاء منيو "${newMenuName}" مع الهوية المخصصة بنجاح!`);
+      setOpenQrInitially(true);
       setSelectedForVisualEdit(createdVenue);
     } catch (err: any) {
       console.error('Error creating venue with custom theme:', err);
-      showToast('حدث خطأ أثناء حفظ المنشأة');
+      setCreateError(createMenuError(err));
     } finally {
       setIsSubmittingNewMenu(false);
     }
@@ -1471,6 +1514,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           {/* ================= TAB 1: OVERVIEW ================= */}
           {activeTab === 'overview' && (
             <div className="space-y-8 animate-in fade-in duration-300">
+              <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-amber-300/25 bg-[#292722] p-4 sm:p-5">
+                <div><h2 className="text-sm font-bold text-amber-300">منيو شاورما سنا التجريبي</h2><p className="mt-1 text-xs text-zinc-300">شاهده وتصفح الأصناف من داخل الداشبورد، بدون إنشاء مطعم أو حفظ بيانات.</p></div>
+                <button type="button" onClick={() => setShowDemoPreview(true)} className="rounded-xl bg-amber-300 px-4 py-3 text-xs font-bold text-black hover:bg-amber-200">معاينة المنيو التجريبي</button>
+              </div>
               {/* Row 1: The Three Bento Cards */}
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 xl:gap-5">
                 
@@ -1817,7 +1864,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
           )}
 
-          {activeTab === 'customers' && <CustomerReports restaurants={restaurants} venueTypes={platformSettings.allowedVenueTypes || []} onToast={showToast} />}
+          {activeTab === 'customers' && <CustomerReports publicBaseUrl={platformSettings.publicBaseUrl} restaurants={restaurants} venueTypes={platformSettings.allowedVenueTypes || []} onToast={showToast} />}
 
           {/* ================= TAB 3: PLATFORM SETTINGS ================= */}
           {activeTab === 'settings' && (
@@ -1879,7 +1926,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
 
             {/* Modal Form */}
-            <form onSubmit={handleCreateNewVenueWithTheme} className="space-y-5">
+            <form noValidate onSubmit={handleCreateNewVenueWithTheme} className="space-y-5">
+              <div className="space-y-2 rounded-2xl border border-amber-300/25 bg-amber-300/5 p-4">
+                <p className="text-sm font-bold text-amber-300">تجربة جاهزة: منيو شاورما سنا</p>
+                <p className="text-xs leading-5 text-zinc-300">يملأ الاسم والتصميم والأصناف والروابط الوهمية تلقائيًا. الضغط على هذا الزر لا يحفظ شيئًا؛ عند الضغط على «إنشاء المنيو» سيُحفظ النموذج في Firebase المرتبطة.</p>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => setShowDemoPreview(true)} className="rounded-xl border border-amber-300/40 px-4 py-2 text-xs font-bold text-amber-300">معاينة المنيو التجريبي</button>
+                  <button type="button" disabled={loadingDemo} onClick={handleLoadDemoMenu} className="rounded-xl bg-amber-300 px-4 py-2 text-xs font-bold text-black disabled:opacity-50">{loadingDemo ? 'جارٍ التجهيز…' : 'تجهيز المنيو التجريبي'}</button>
+                </div>
+                {demoMenuData ? <div className="space-y-2"><p className="text-xs font-bold text-amber-200">تم تجهيز بيانات تجريبية: الأرقام والحسابات والموقع والأسعار ليست بيانات المطعم الفعلية.</p><button type="button" onClick={() => setDemoMenuData(null)} className="text-xs text-zinc-300 underline">إزالة بيانات التجربة والإبقاء على التصميم</button></div> : <p className="text-xs text-zinc-400">لإضافة أصناف التجربة تلقائيًا اضغط «تجهيز المنيو التجريبي»؛ لصق HTML وحده لا يضيف بيانات الأصناف.</p>}
+              </div>
               {/* Field 1: Venue Name */}
               <div className="space-y-2">
                 <label className="text-xs font-bold text-zinc-300 flex items-center gap-1.5">
@@ -1918,28 +1974,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </select>
               </div>
 
-              {/* Field 3: Stitch export */}
+              {/* Standalone HTML from any source; storage field stays compatible with existing menus. */}
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-zinc-300 flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-[16px] text-[#F7E354]">code</span>
-                    كود تصميم Stitch (HTML):
-                  </label>
-                  <span className="text-[10px] text-[#F7E354] font-mono">حتى 400 كيلوبايت</span>
-                </div>
-                <p className="text-[11px] text-zinc-400">
-                  الصق ملف HTML الذي صدّرته من Stitch. يجب أن يستخدم <code dir="ltr">window.MENU_DATA</code> ويستمع إلى <code dir="ltr">menu-data-update</code> حتى تعرض المعاينة المباشرة تعديلات الاسم والشعار والأقسام والأصناف والأسعار والصور والعروض.
-                </p>
-                <textarea
-                  rows={10}
-                  required
-                  value={newMenuThemeConfig}
-                  onChange={(e) => setNewMenuThemeConfig(e.target.value)}
-                  dir="ltr"
-                  className="w-full bg-[#161618] border border-white/10 rounded-2xl p-4 text-xs font-mono text-[#F7E354] focus:border-[#F7E354] focus:outline-none transition-colors leading-relaxed selection:bg-white/20"
-                />
+                <label className="text-xs font-bold text-zinc-300 flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[16px] text-[#F7E354]">code</span>
+                  تصميم المنيو (HTML):
+                </label>
+                <HtmlDesignInput value={newMenuThemeConfig} onChange={setNewMenuThemeConfig} required rows={10} />
               </div>
 
+              {createError && <div role="alert" aria-live="assertive" className="rounded-xl border border-red-400/40 bg-red-950/50 p-4 text-sm font-bold leading-6 text-red-100">
+                <p>لم يتم إنشاء المنيو</p><p className="mt-1 font-normal">{createError}</p>
+              </div>}
               {/* Modal Actions */}
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/5">
                 <button
@@ -1967,15 +2013,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       {selectedForVisualEdit && (
         <VisualMenuEditor
           initialRestaurant={selectedForVisualEdit}
-          onClose={() => setSelectedForVisualEdit(null)}
-          onSaved={async (updated: RestaurantData) => {
-            if (db) {
-              await updateDoc(doc(db, 'restaurants', updated.id), updated);
-            }
+          publicBaseUrl={platformSettings.publicBaseUrl}
+          openQrInitially={openQrInitially}
+          onClose={() => { setSelectedForVisualEdit(null); setOpenQrInitially(false); }}
+          onSaved={(updated: RestaurantData) => {
             setRestaurants((prev) =>
               prev.map((r) => (r.id === updated.id ? updated : r))
             );
             setSelectedForVisualEdit(null);
+            setOpenQrInitially(false);
             showToast(`تم حفظ وتصدير تعديلات \"${updated.name}\" بنجاح!`);
           }}
           availableTypes={platformSettings.allowedVenueTypes || [
@@ -1985,10 +2031,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         />
       )}
 
+      {showDemoPreview && <DemoMenuPreview onClose={() => setShowDemoPreview(false)} />}
+
       {/* QR MODAL */}
       {selectedForQR && (
         <QRCodeModal
           restaurant={selectedForQR}
+          publicBaseUrl={platformSettings.publicBaseUrl}
           isOpen={Boolean(selectedForQR)}
           onClose={() => setSelectedForQR(null)}
         />

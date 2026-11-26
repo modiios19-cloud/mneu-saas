@@ -64,7 +64,7 @@ export const VenuesManagement: React.FC<VenuesManagementProps> = ({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="بحث عن منيو بالاسم أو المعرّف (Slug)..."
-            className="w-full pr-10 pl-4 py-2.5 rounded-2xl border border-zinc-200 text-xs focus:outline-none focus:border-black bg-white shadow-2xs"
+            className="w-full pr-10 pl-4 py-2.5 rounded-2xl border border-zinc-700 text-xs focus:outline-none focus:border-amber-400 bg-[#272729] text-white shadow-2xs"
           />
         </div>
 
@@ -82,7 +82,7 @@ export const VenuesManagement: React.FC<VenuesManagementProps> = ({
       </div>
 
       {/* DYNAMIC CATEGORY COLUMNS */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 divide-y lg:divide-y-0 lg:divide-x lg:divide-x-reverse divide-zinc-200">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 divide-y lg:divide-y-0 lg:divide-x lg:divide-x-reverse divide-zinc-700">
         {venueTypes.map((type, idx) => {
           const venues = getVenuesForType(type.id);
           const isCafe = type.id === 'cafe';
@@ -93,7 +93,7 @@ export const VenuesManagement: React.FC<VenuesManagementProps> = ({
               className={`space-y-4 ${idx > 0 ? 'pt-8 lg:pt-0 lg:pr-8' : ''}`}
             >
               {/* Column Header */}
-              <div className="flex items-center justify-between pb-3 border-b border-zinc-200/80">
+              <div className="flex items-center justify-between pb-3 border-b border-zinc-700/70">
                 <div className="flex items-center gap-2.5">
                   <div
                     className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-black shadow-2xs ${
@@ -103,7 +103,7 @@ export const VenuesManagement: React.FC<VenuesManagementProps> = ({
                     {isCafe ? <Coffee className="w-4 h-4" /> : <Store className="w-4 h-4" />}
                   </div>
                   <div>
-                    <h3 className="text-sm font-extrabold text-black">
+                    <h3 className="text-sm font-extrabold text-zinc-100">
                       قسم: {type.labelAr}
                     </h3>
                     <p className="text-[11px] text-zinc-500 font-medium">
@@ -125,16 +125,16 @@ export const VenuesManagement: React.FC<VenuesManagementProps> = ({
 
               {/* Venues in this Column */}
               {venues.length === 0 ? (
-                <div className="p-8 rounded-2xl bg-white border border-dashed border-zinc-200 text-center space-y-3">
-                  <div className="w-10 h-10 rounded-xl bg-zinc-100 text-zinc-400 flex items-center justify-center mx-auto">
+                <div className="p-8 rounded-2xl bg-[#272729] border border-dashed border-zinc-700 text-center space-y-3">
+                  <div className="w-10 h-10 rounded-xl bg-zinc-800 text-zinc-400 flex items-center justify-center mx-auto">
                     {isCafe ? <Coffee className="w-5 h-5" /> : <Store className="w-5 h-5" />}
                   </div>
-                  <p className="text-xs text-zinc-600 font-medium">
+                  <p className="text-xs text-zinc-400 font-medium">
                     لا توجد قوائم طعام مسجلة في قسم "{type.labelAr}"
                   </p>
                   <button
                     onClick={() => onAddNewVenue(type.id)}
-                    className="text-xs font-bold text-black hover:text-amber-500 hover:underline cursor-pointer"
+                    className="text-xs font-bold text-amber-300 hover:text-amber-400 hover:underline cursor-pointer"
                   >
                     + اضغط هنا لإنشاء أول قائمة في هذا القسم
                   </button>
@@ -145,11 +145,11 @@ export const VenuesManagement: React.FC<VenuesManagementProps> = ({
                     return (
                       <div
                         key={venue.slug}
-                        className="bg-white rounded-2xl border border-zinc-200/80 p-4 shadow-xs hover:shadow-md transition-all space-y-3 group"
+                        className="bg-[#272729] rounded-2xl border border-zinc-700/70 p-4 shadow-xs hover:shadow-md transition-all space-y-3 group"
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 rounded-2xl overflow-hidden bg-zinc-100 border border-zinc-200/80 flex items-center justify-center flex-shrink-0 shadow-2xs">
+                            <div className="w-12 h-12 rounded-2xl overflow-hidden bg-zinc-800 border border-zinc-700/70 flex items-center justify-center flex-shrink-0 shadow-2xs">
                               {venue.logoUrl ? (
                                 <img
                                   src={venue.logoUrl}
@@ -163,11 +163,11 @@ export const VenuesManagement: React.FC<VenuesManagementProps> = ({
 
                             <div>
                               <div className="flex items-center gap-2">
-                                <h4 className="text-xs font-extrabold text-black group-hover:text-amber-500 transition-colors leading-tight">
+                                <h4 className="text-xs font-extrabold text-zinc-100 group-hover:text-amber-500 transition-colors leading-tight">
                                   {venue.name}
                                 </h4>
                                 {venue.isActive === false && (
-                                  <span className="text-[9px] font-bold text-zinc-700 bg-zinc-200 px-1.5 py-0.5 rounded">
+                                  <span className="text-[9px] font-bold text-zinc-300 bg-zinc-700 px-1.5 py-0.5 rounded">
                                     معطل
                                   </span>
                                 )}
@@ -186,7 +186,7 @@ export const VenuesManagement: React.FC<VenuesManagementProps> = ({
                         </div>
 
                         {/* Action buttons */}
-                        <div className="flex items-center gap-2 pt-2 border-t border-zinc-100">
+                        <div className="flex items-center gap-2 pt-2 border-t border-zinc-700">
                           {/* Visual Editor Trigger: Black & Yellow */}
                           <button
                             onClick={() => onEditVenue(venue)}
@@ -199,7 +199,7 @@ export const VenuesManagement: React.FC<VenuesManagementProps> = ({
                           {/* QR Modal */}
                           <button
                             onClick={() => onOpenQR(venue)}
-                            className="p-2 rounded-xl border border-zinc-200 hover:bg-black hover:text-amber-400 text-zinc-700 transition-colors cursor-pointer"
+                            className="p-2 rounded-xl border border-zinc-700 hover:bg-black hover:text-amber-400 text-zinc-300 transition-colors cursor-pointer"
                             title="رمز QR"
                           >
                             <QrCode className="w-4 h-4" />
@@ -208,7 +208,7 @@ export const VenuesManagement: React.FC<VenuesManagementProps> = ({
                           {/* Live Menu Preview */}
                           <button
                             onClick={() => onPreviewMenu(venue.slug)}
-                            className="p-2 rounded-xl border border-zinc-200 hover:bg-black hover:text-amber-400 text-zinc-700 transition-colors cursor-pointer"
+                            className="p-2 rounded-xl border border-zinc-700 hover:bg-black hover:text-amber-400 text-zinc-300 transition-colors cursor-pointer"
                             title="معاينة قائمة العميل"
                           >
                             <ExternalLink className="w-4 h-4" />

@@ -7,7 +7,10 @@ export interface Category {
   nameEn?: string;
   icon?: string;
   isActive?: boolean;
+  menuGroupId?: string;
 }
+
+export interface MenuGroup { id: string; labelAr: string; labelEn?: string; }
 
 export type ItemBadge = 'popular' | 'new' | 'offer' | 'soldout' | 'spicy';
 
@@ -34,6 +37,7 @@ export interface RestaurantContact {
   whatsapp?: string;
   maps?: string;
   instagram?: string;
+  facebook?: string;
   tiktok?: string;
   locationNameAr?: string;
   locationNameEn?: string;
@@ -63,7 +67,7 @@ export interface RestaurantData {
   isActive?: boolean;
   type?: 'restaurant' | 'cafe' | string;
   themeConfig?: Record<string, any>;
-  /** Self-contained HTML exported for this menu, authored in Stitch. */
+  /** Standalone HTML from any source. Legacy field name retained for existing menus. */
   stitchDesignCode?: string;
   layoutStyle?: string;
   fontFamily?: string;
@@ -79,6 +83,7 @@ export interface RestaurantData {
     categoryViews?: { categoryId: string; views: number }[];
   };
   categories: Category[];
+  menuGroups?: MenuGroup[];
   products: MenuItem[];
   contact: RestaurantContact;
   client?: ClientContact;
@@ -88,6 +93,7 @@ export interface RestaurantData {
 
 export interface PlatformSettings {
   platformName: string;
+  publicBaseUrl?: string;
   platformLogoUrl?: string;
   allowedVenueTypes?: { id: string; labelAr: string; icon?: string }[];
 }

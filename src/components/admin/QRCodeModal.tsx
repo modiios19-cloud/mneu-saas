@@ -1,16 +1,19 @@
 import React, { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
-import { X, Download, Copy, Check, ExternalLink, Printer } from 'lucide-react';
+import { X, Download, Copy, Check, ExternalLink } from 'lucide-react';
 import { RestaurantData } from '../../types/restaurant';
+import { menuUrl as buildMenuUrl, isTemporaryMenuUrl } from '../../lib/menuUrl';
 
 interface QRCodeModalProps {
   restaurant: RestaurantData | null;
+  publicBaseUrl?: string;
   isOpen: boolean;
   onClose: () => void;
 }
 
 export const QRCodeModal: React.FC<QRCodeModalProps> = ({
   restaurant,
+  publicBaseUrl,
   isOpen,
   onClose
 }) => {
@@ -20,9 +23,7 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
   const [copied, setCopied] = useState(false);
   const [dataUrl, setDataUrl] = useState<string>('');
 
-  const menuUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}/?id=${restaurant.slug}`
-    : `https://menu.app/?id=${restaurant.slug}`;
+  const menuUrl = buildMenuUrl(restaurant.slug, publicBaseUrl);
 
   useEffect(() => {
     if (canvasRef.current) {
@@ -61,18 +62,14 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
     link.click();
   };
 
-  const handlePrint = () => {
-    window.print();
-  };
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div className="absolute inset-0" onClick={onClose} />
 
-      <div className="relative w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl z-10 text-center space-y-5 animate-in zoom-in-95 duration-200">
+      <div className="relative w-full max-w-sm bg-[#272729] border border-zinc-700 text-zinc-100 rounded-3xl p-6 shadow-2xl z-10 text-center space-y-5 animate-in zoom-in-95 duration-200">
         <button
           onClick={onClose}
-          className="absolute top-4 left-4 p-1.5 rounded-full text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 cursor-pointer"
+          className="absolute top-4 left-4 p-1.5 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-700 cursor-pointer"
         >
           <X className="w-5 h-5" />
         </button>
@@ -84,36 +81,37 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
               <img
                 src={restaurant.logoUrl}
                 alt={restaurant.name}
-                className="w-8 h-8 rounded-lg object-contain bg-zinc-50 border border-zinc-100 p-0.5"
+                className="w-8 h-8 rounded-lg object-contain bg-zinc-800 border border-zinc-700 p-0.5"
               />
             )}
-            <h3 className="text-base font-extrabold text-[#111111]">
+            <h3 className="text-base font-extrabold text-white">
               {restaurant.name}
             </h3>
           </div>
-          <p className="text-xs text-[#71717A]">
+          <p className="text-xs text-zinc-400">
             امسح الرمز لفتح القائمة الرقمية للعملاء
           </p>
         </div>
 
+        {isTemporaryMenuUrl(menuUrl) && <p className="text-xs text-amber-300">هذا رابط المعاينة المؤقت. استخدم الموقع المنشور للحصول على رابط مناسب للطباعة والمشاركة.</p>}
         {/* QR Canvas Container */}
         <div className="p-4 bg-zinc-50 rounded-2xl border border-zinc-200/80 inline-block mx-auto shadow-inner">
           <canvas ref={canvasRef} className="rounded-xl shadow-xs" />
         </div>
 
         {/* Link display & copy */}
-        <div className="flex items-center justify-between p-2.5 rounded-xl bg-zinc-100 text-xs font-mono text-zinc-700">
+        <div className="flex items-center justify-between p-2.5 rounded-xl bg-zinc-900 text-xs font-mono text-zinc-300">
           <span className="truncate max-w-[200px] text-right dir-ltr" dir="ltr">
             {menuUrl}
           </span>
           <button
             onClick={handleCopy}
-            className="flex items-center gap-1 text-[11px] font-bold text-black hover:text-amber-500 px-2 py-1 rounded-lg bg-white shadow-xs cursor-pointer"
+            className="flex items-center gap-1 text-[11px] font-bold text-amber-300 hover:text-amber-200 px-2 py-1 rounded-lg bg-zinc-700 shadow-xs cursor-pointer"
           >
             {copied ? (
               <>
-                <Check className="w-3.5 h-3.5 text-black" />
-                <span className="text-black font-sans">تم النسخ</span>
+                <Check className="w-3.5 h-3.5 text-amber-300" />
+                <span className="text-amber-300 font-sans">تم النسخ</span>
               </>
             ) : (
               <>

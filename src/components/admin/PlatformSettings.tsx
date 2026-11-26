@@ -33,6 +33,7 @@ export const PlatformSettings: React.FC<PlatformSettingsProps> = ({
   onSaved
 }) => {
   const [platformName, setPlatformName] = useState(settings.platformName || 'منصة إدارة المطاعم');
+  const [publicBaseUrl, setPublicBaseUrl] = useState(settings.publicBaseUrl || '');
   const [platformLogoUrl, setPlatformLogoUrl] = useState(settings.platformLogoUrl || '');
   const [compressingLogo, setCompressingLogo] = useState(false);
   const [venueTypes, setVenueTypes] = useState(
@@ -91,10 +92,15 @@ export const PlatformSettings: React.FC<PlatformSettingsProps> = ({
       return;
     }
 
+    if (publicBaseUrl.trim()) {
+      try { const url = new URL(publicBaseUrl.trim()); if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) throw new Error(); }
+      catch { alert('أدخل رابط موقع منشور صالحًا يبدأ بـ https:// أو اترك الحقل فارغًا.'); return; }
+    }
     setSaving(true);
     try {
       const updated: PlatformSettingsType = {
         platformName: platformName.trim(),
+        publicBaseUrl: publicBaseUrl.trim(),
         platformLogoUrl: platformLogoUrl.trim(),
         allowedVenueTypes: venueTypes
       };
@@ -125,25 +131,25 @@ export const PlatformSettings: React.FC<PlatformSettingsProps> = ({
       )}
 
       {/* Header Info */}
-      <div className="bg-white p-6 rounded-3xl border border-zinc-200/80 shadow-xs space-y-1">
-        <div className="flex items-center gap-2 text-base font-extrabold text-black">
+      <div className="bg-[#272729] p-6 rounded-3xl border border-zinc-700/70 shadow-xs space-y-1">
+        <div className="flex items-center gap-2 text-base font-extrabold text-zinc-100">
           <Sliders className="w-5 h-5 text-amber-400" />
           <h2>إعدادات المنصة العامة (Platform Settings)</h2>
         </div>
-        <p className="text-xs text-zinc-600 leading-relaxed">
+        <p className="text-xs text-zinc-400 leading-relaxed">
           تخصيص الهوية العامة للداشبورد وتصنيفات الأنشطة المتاحة في النظام، وتخزينها في <code>settings/general</code>
         </p>
       </div>
 
       <form onSubmit={handleSaveSettings} className="space-y-5">
         {/* Branding Box */}
-        <div className="bg-white p-6 rounded-3xl border border-zinc-200/80 shadow-xs space-y-4">
-          <h3 className="text-xs font-bold text-black border-b border-zinc-100 pb-2">
+        <div className="bg-[#272729] p-6 rounded-3xl border border-zinc-700/70 shadow-xs space-y-4">
+          <h3 className="text-xs font-bold text-zinc-100 border-b border-zinc-700 pb-2">
             هوية وشعار لوحة التحكم
           </h3>
 
           <div>
-            <label className="text-xs font-bold text-black block mb-1">
+            <label className="text-xs font-bold text-zinc-100 block mb-1">
               اسم المنصة (Platform Brand Name) *
             </label>
             <input
@@ -151,13 +157,19 @@ export const PlatformSettings: React.FC<PlatformSettingsProps> = ({
               value={platformName}
               onChange={(e) => setPlatformName(e.target.value)}
               placeholder="مثلاً: منصة قوائمي أو نظام المنيو الذكي"
-              className="w-full text-xs p-3 rounded-xl border border-zinc-200 focus:outline-none focus:border-black bg-zinc-50/50"
+              className="w-full text-xs p-3 rounded-xl border border-zinc-700 focus:outline-none focus:border-amber-400 bg-zinc-900 text-white"
               required
             />
           </div>
 
           <div>
-            <label className="text-xs font-bold text-black block mb-1">
+            <label className="text-xs font-bold text-zinc-100 block mb-1">رابط الموقع المنشور للمنيوهات (اختياري)</label>
+            <input type="url" dir="ltr" value={publicBaseUrl} onChange={e => setPublicBaseUrl(e.target.value)} placeholder="https://your-domain.com/" className="w-full text-xs p-3 rounded-xl border border-zinc-700 bg-zinc-900 text-white" />
+            <p className="text-[10px] text-zinc-500 mt-2">ضع الرابط الدائم قبل طباعة أي QR. إذا تُرك فارغًا سيُستخدم عنوان الصفحة الحالية، وقد يكون رابط المعاينة مؤقتًا. تغيير النطاق لاحقًا قد يعطّل الرموز المطبوعة.</p>
+          </div>
+
+          <div>
+            <label className="text-xs font-bold text-zinc-100 block mb-1">
               شعار لوحة التحكم
             </label>
             <div className="flex flex-wrap items-center gap-3">
@@ -167,13 +179,13 @@ export const PlatformSettings: React.FC<PlatformSettingsProps> = ({
                 value={platformLogoUrl.startsWith('data:') ? '' : platformLogoUrl}
                 onChange={(e) => setPlatformLogoUrl(e.target.value)}
                 placeholder={platformLogoUrl.startsWith('data:') ? 'تم رفع صورة من الجهاز؛ الصق رابطًا لاستبدالها' : 'الصق رابط صورة الشعار (اختياري)'}
-                className="flex-1 text-xs p-3 rounded-xl border border-zinc-200 focus:outline-none focus:border-black bg-zinc-50/50"
+                className="flex-1 text-xs p-3 rounded-xl border border-zinc-700 focus:outline-none focus:border-amber-400 bg-zinc-900 text-white"
               />
               {platformLogoUrl ? (
                 <img
                   src={platformLogoUrl}
                   alt="Platform Logo Preview"
-                  className="w-10 h-10 rounded-xl object-contain border border-zinc-200 bg-zinc-100 p-1"
+                  className="w-10 h-10 rounded-xl object-contain border border-zinc-700 bg-zinc-800 p-1"
                 />
               ) : (
                 <div className="w-10 h-10 rounded-xl bg-black border border-amber-400/20 flex items-center justify-center text-amber-400">
@@ -187,7 +199,7 @@ export const PlatformSettings: React.FC<PlatformSettingsProps> = ({
                 {compressingLogo ? 'جارٍ تجهيز الصورة…' : 'رفع صورة من الجهاز'}
                 <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" disabled={compressingLogo} onChange={e => { void handleLogoFile(e.target.files?.[0]); e.currentTarget.value = ''; }}/>
               </label>
-              {platformLogoUrl && <button type="button" onClick={() => setPlatformLogoUrl('')} className="inline-flex items-center gap-1 rounded-xl border border-zinc-200 px-3 py-2 text-xs font-bold text-zinc-600"><X className="h-3.5 w-3.5"/>إزالة الشعار</button>}
+              {platformLogoUrl && <button type="button" onClick={() => setPlatformLogoUrl('')} className="inline-flex items-center gap-1 rounded-xl border border-zinc-700 px-3 py-2 text-xs font-bold text-zinc-300"><X className="h-3.5 w-3.5"/>إزالة الشعار</button>}
             </div>
             <p className="text-[10px] text-zinc-400 mt-1">
               ارفع PNG أو JPG أو WebP، أو الصق رابطًا. يُضغط الشعار محليًا قبل حفظه في إعدادات المنصة.
@@ -196,8 +208,8 @@ export const PlatformSettings: React.FC<PlatformSettingsProps> = ({
         </div>
 
         {/* Venue Categories Box */}
-        <div className="bg-white p-6 rounded-3xl border border-zinc-200/80 shadow-xs space-y-4">
-          <h3 className="text-xs font-bold text-black border-b border-zinc-100 pb-2">
+        <div className="bg-[#272729] p-6 rounded-3xl border border-zinc-700/70 shadow-xs space-y-4">
+          <h3 className="text-xs font-bold text-zinc-100 border-b border-zinc-700 pb-2">
             أعمدة وتصنيفات الأنشطة (مطاعم، مقاهي، حلويات...)
           </h3>
 
@@ -207,7 +219,7 @@ export const PlatformSettings: React.FC<PlatformSettingsProps> = ({
               value={newTypeName}
               onChange={(e) => setNewTypeName(e.target.value)}
               placeholder="أدخل تصنيف جديد (مثال: حلويات، مخابز، عصائر)..."
-              className="flex-1 text-xs p-3 rounded-xl border border-zinc-200 focus:outline-none focus:border-black bg-zinc-50/50"
+              className="flex-1 text-xs p-3 rounded-xl border border-zinc-700 focus:outline-none focus:border-amber-400 bg-zinc-900 text-white"
             />
             <button
               type="button"
@@ -223,13 +235,13 @@ export const PlatformSettings: React.FC<PlatformSettingsProps> = ({
             {venueTypes.map((t) => (
               <div
                 key={t.id}
-                className="p-3 rounded-xl border border-zinc-200/80 bg-zinc-50 flex items-center justify-between text-xs"
+                className="p-3 rounded-xl border border-zinc-700 bg-zinc-800 flex items-center justify-between text-xs"
               >
-                <span className="font-bold text-black">{t.labelAr}</span>
+                <span className="font-bold text-zinc-100">{t.labelAr}</span>
                 <button
                   type="button"
                   onClick={() => handleRemoveType(t.id)}
-                  className="text-zinc-400 hover:text-black p-1 transition-colors cursor-pointer"
+                  className="text-zinc-400 hover:text-white p-1 transition-colors cursor-pointer"
                   title="حذف"
                 >
                   <Trash2 className="w-3.5 h-3.5" />

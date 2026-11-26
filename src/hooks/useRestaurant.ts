@@ -113,7 +113,7 @@ function normalizeRestaurantData(docId: string, rawData: any): RestaurantData {
   }
 
   // معالجة المنتجات (items أو products)
-  const rawItems = rawData.items || rawData.products || [];
+  const rawItems = Array.isArray(rawData.products) ? rawData.products : (rawData.items || []);
   const products: MenuItem[] = rawItems.map((item: any, idx: number) => ({
     id: item.id || `item-${idx}`,
     categoryId: item.category || item.categoryId || categories[0]?.id || 'all',
@@ -145,7 +145,10 @@ function normalizeRestaurantData(docId: string, rawData: any): RestaurantData {
     currency: rawData.currency || 'ر.س',
     statusText: rawData.statusText || 'مفتوح للطلبات الآن',
     statusTextEn: rawData.statusTextEn || 'Open for orders now',
+    isActive: rawData.isActive !== false,
+    type: rawData.type,
     categories,
+    menuGroups: Array.isArray(rawData.menuGroups) ? rawData.menuGroups : [],
     products,
     contact: rawData.contact || {}
   };

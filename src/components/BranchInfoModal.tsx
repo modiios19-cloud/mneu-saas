@@ -1,3 +1,5 @@
+import { normalizePhone } from '../lib/phone';
+import { safeWebUrl } from '../lib/contactLinks';
 import React from 'react';
 import { RestaurantData } from '../types/restaurant';
 import { X, Clock, MapPin, Phone, ShieldCheck } from 'lucide-react';
@@ -78,9 +80,7 @@ export const BranchInfoModal: React.FC<BranchInfoModalProps> = ({
                 <p className="font-bold text-[#111111]">
                   {isAr ? 'الموقع والعنوان' : 'Location & Address'}
                 </p>
-                <p className="text-[#71717A] mt-0.5">
-                  {isAr ? contact.locationNameAr : (contact.locationNameEn || contact.locationNameAr)}
-                </p>
+                {safeWebUrl(contact.maps) ? <a href={safeWebUrl(contact.maps)} target="_blank" rel="noopener noreferrer" className="mt-0.5 block underline" style={{ color: primaryColor }}>{isAr ? contact.locationNameAr : (contact.locationNameEn || contact.locationNameAr)}</a> : <p className="text-[#71717A] mt-0.5">{isAr ? contact.locationNameAr : (contact.locationNameEn || contact.locationNameAr)}</p>}
               </div>
             </div>
           )}
@@ -102,9 +102,9 @@ export const BranchInfoModal: React.FC<BranchInfoModalProps> = ({
 
         {/* Actions */}
         <div className="grid grid-cols-2 gap-3 pt-2">
-          {contact.maps && (
+          {safeWebUrl(contact.maps) && (
             <a
-              href={contact.maps}
+              href={safeWebUrl(contact.maps)}
               target="_blank"
               rel="noopener noreferrer"
               className="py-2.5 px-3 rounded-xl border border-zinc-200 hover:text-white text-center text-xs font-bold transition-all flex items-center justify-center gap-1.5"
@@ -123,7 +123,7 @@ export const BranchInfoModal: React.FC<BranchInfoModalProps> = ({
           )}
           {contact.phone && (
             <a
-              href={`tel:${contact.phone}`}
+              href={`tel:${normalizePhone(contact.phone)}`}
               className="py-2.5 px-3 rounded-xl text-white text-center text-xs font-bold transition-all flex items-center justify-center gap-1.5"
               style={{ backgroundColor: primaryColor }}
             >

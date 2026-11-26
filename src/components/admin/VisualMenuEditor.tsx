@@ -1,7 +1,19 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { doc, setDoc } from 'firebase/firestore';
+import { addDoc, collection, doc, getDoc, getDocs, orderBy, query, limit, serverTimestamp, setDoc, Timestamp } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import { buildStitchDocument } from '../../lib/stitchDesign';
+import { buildStitchDocument, withPlatformContactLinks } from '../../lib/stitchDesign';
+import { HtmlDesignInput, MAX_HTML_DESIGN_BYTES } from './HtmlDesignInput';
+import { onlyMenuFields, publishVersionedMenu } from '../../lib/menuVersions';
+import { menuUrl } from '../../lib/menuUrl';
+import { whatsappDigits } from '../../lib/phone';
+import { QRCodeModal } from './QRCodeModal';
+import { ContactBar } from '../ContactBar';
+import { MenuGroupBar } from '../MenuGroupBar';
+import { filterMenuGroup } from '../../lib/menuGroups';
+import { Footer } from '../Footer';
+import { parseMenuImport } from '../../lib/importMenuData';
+import { getContactLinks, safeWebUrl } from '../../lib/contactLinks';
+import { isTemporaryMenuUrl } from '../../lib/menuUrl';
 import { RestaurantData, Category, MenuItem, ItemBadge } from '../../types/restaurant';
 import {
   Save,
@@ -32,12 +44,16 @@ interface VisualMenuEditorProps {
   onClose: () => void;
   onSaved: (updatedRestaurant: RestaurantData) => void;
   availableTypes?: { id: string; labelAr: string }[];
+  publicBaseUrl?: string;
+  openQrInitially?: boolean;
 }
 
 export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
   initialRestaurant,
   onClose,
   onSaved,
+  publicBaseUrl,
+  openQrInitially = false,
   availableTypes = [
     { id: 'restaurant', labelAr: 'مطعم' },
     { id: 'cafe', labelAr: 'مقهى' }
@@ -57,11 +73,78 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
     contact: { ...(initialRestaurant.contact || {}) }
   });
 
+  const [showQr, setShowQr] = useState(openQrInitially);
   const [activeCategory, setActiveCategory] = useState<string>('all');
+  const [activeMenuGroup, setActiveMenuGroup] = useState('all');
+  const activeGroup = activeMenuGroup === 'all' || (draft.menuGroups || []).some(group => group.id === activeMenuGroup) ? activeMenuGroup : 'all';
   const [isMobileFrame, setIsMobileFrame] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
+  const [previewUrl, setPreviewUrl] = useState('');
+  const [creatingPreview, setCreatingPreview] = useState(false);
+  const saveDraft = async () => {
+    setSaving(true);
+    try {
+      const menu = JSON.parse(JSON.stringify(onlyMenuFields(draft as unknown as Record<string, unknown>)));
+      if (new Blob([JSON.stringify(menu)]).size > 850_000) throw new Error('حجم المسودة كبير جدًا؛ قلّل حجم التصميم أو الصور أولًا.');
+      await setDoc(doc(db, 'menuDrafts', initialRestaurant.id), { menu, updatedAt: serverTimestamp() });
+      showToast('تم حفظ المسودة دون نشر المنيو');
+    } catch (error) { alert(error instanceof Error ? error.message : 'تعذر حفظ المسودة.'); }
+    finally { setSaving(false); }
+  };
+  const loadDraft = async () => {
+    if (!confirm('تحميل المسودة سيستبدل التعديلات غير المحفوظة في المحرر. هل تريد المتابعة؟')) return;
+    setSaving(true);
+    try {
+      const snapshot = await getDoc(doc(db, 'menuDrafts', initialRestaurant.id));
+      if (!snapshot.exists()) { alert('لا توجد مسودة محفوظة لهذا المنيو.'); return; }
+      setDraft(previous => ({ ...previous, ...snapshot.data().menu, id: previous.id, slug: previous.slug }));
+      setPreviewUrl(''); showToast('تم تحميل المسودة؛ لم يتغير المنيو المنشور');
+    } catch { alert('تعذر تحميل المسودة.'); }
+    finally { setSaving(false); }
+  };
+  const createPreview = async () => {
+    if (new Blob([draft.stitchDesignCode || '']).size > MAX_HTML_DESIGN_BYTES) return alert('التصميم أكبر من الحد المسموح.');
+    setCreatingPreview(true); setPreviewUrl('');
+    try {
+      // Explicit public fields only: never include client details, internal notes or analytics.
+      const menu = JSON.parse(JSON.stringify({ id: draft.id, slug: draft.slug, name: draft.name, nameEn: draft.nameEn, logoUrl: draft.logoUrl, primaryColor: draft.primaryColor, secondaryColor: draft.secondaryColor, currency: draft.currency, type: draft.type, statusText: draft.statusText, categories: draft.categories, menuGroups: draft.menuGroups || [], products: draft.products, contact: draft.contact, stitchDesignCode: draft.stitchDesignCode, updatedAt: draft.updatedAt }));
+      const ref = await addDoc(collection(db, 'publicMenuPreviews'), { menu, createdAt: serverTimestamp(), expiresAt: Timestamp.fromDate(new Date(Date.now() + 7 * 86400000)) });
+      const link = new URL(menuUrl(draft.slug, publicBaseUrl)); link.search = ''; link.searchParams.set('preview', ref.id);
+      setPreviewUrl(link.toString());
+    } catch (error) { alert('تعذر إنشاء المعاينة. تأكد من الاتصال ومن نشر قواعد المعاينة في Firebase.'); console.error(error); }
+    finally { setCreatingPreview(false); }
+  };
+  const [versions, setVersions] = useState<{ id: string; menu: Record<string, unknown>; date: string }[]>([]);
+  const [versionError, setVersionError] = useState('');
+  const loadVersions = async () => {
+    try {
+      const snapshots = await getDocs(query(collection(db, 'restaurants', initialRestaurant.id, 'versions'), orderBy('createdAt', 'desc'), limit(20)));
+      setVersions(snapshots.docs.map(item => ({ id: item.id, menu: item.data().menu || {}, date: item.data().createdAt?.toDate?.().toLocaleString('ar') || 'نسخة سابقة' })));
+      setVersionError('');
+    } catch { setVersionError('تعذر تحميل النسخ السابقة.'); }
+  };
+  const restoreVersion = async (menu: Record<string, unknown>) => {
+    if (!confirm('استعادة هذه النسخة ستنشر المنيو القديم وتحفظ نسخة من الحالي. هل تريد المتابعة؟')) return;
+    setSaving(true);
+    try { await publishVersionedMenu(initialRestaurant.id, menu, true); window.location.reload(); }
+    catch (error) { alert(error instanceof Error ? error.message : 'تعذرت الاستعادة.'); setSaving(false); }
+  };
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const stitchPreviewRef = useRef<HTMLIFrameElement>(null);
+  const editorCanvasRef = useRef<HTMLDivElement>(null);
+  const importMenuFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!/\.json$/i.test(file.name) || file.size > 400_000) { alert('اختر ملف JSON بحجم لا يتجاوز 400 كيلوبايت.'); return; }
+    try {
+      const menu = parseMenuImport(await file.text());
+      if (!confirm('سيستبدل الاستيراد بيانات المنيو الحالية في المحرر، بما فيها الأقسام والأصناف وبيانات التواصل الموجودة في الملف. لن يغير التصميم أو بيانات العميل، ولن ينشر حتى تضغط حفظ. هل تريد المتابعة؟')) return;
+      setDraft(previous => ({ ...previous, ...menu }));
+      setActiveCategory('all'); setActiveMenuGroup('all'); setPreviewUrl('');
+      showToast('تم تحميل البيانات في المحرر فقط؛ احفظ إذا أردت نشرها');
+    } catch (error) { alert(error instanceof Error ? `تعذر استيراد البيانات: ${error.message}` : 'تعذر قراءة ملف البيانات.'); }
+  };
 
   // Modal for changing an image URL
   const [editingImageTarget, setEditingImageTarget] = useState<{
@@ -73,6 +156,7 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
   const [imageUrlInput, setImageUrlInput] = useState('');
 
   const primaryColor = draft.primaryColor || '#A33900';
+  const filteredDraftMenu = useMemo(() => filterMenuGroup(draft.categories, draft.products, activeGroup), [draft.categories, draft.products, activeGroup]);
   const stitchMenuData = useMemo(() => ({
     restaurant: {
       id: draft.id,
@@ -87,11 +171,12 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
       contact: draft.contact,
       statusText: draft.statusText
     },
-    categories: draft.categories,
-    products: draft.products,
-    offers: draft.products.filter((item) => item.badge === 'offer'),
+    categories: filteredDraftMenu.categories,
+    menuGroups: draft.menuGroups || [],
+    products: filteredDraftMenu.products,
+    offers: filteredDraftMenu.products.filter((item) => item.badge === 'offer'),
     updatedAt: draft.updatedAt || null
-  }), [draft, primaryColor]);
+  }), [draft, primaryColor, filteredDraftMenu]);
   const stitchPreviewDocument = useMemo(
     () => draft.stitchDesignCode ? buildStitchDocument(draft.stitchDesignCode, {
       restaurant: {}, categories: [], products: [], offers: [], updatedAt: null
@@ -100,7 +185,7 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
   );
 
   useEffect(() => {
-    stitchPreviewRef.current?.contentWindow?.postMessage({ type: 'MENU_DATA_UPDATE', payload: stitchMenuData }, '*');
+    stitchPreviewRef.current?.contentWindow?.postMessage({ type: 'MENU_DATA_UPDATE', payload: withPlatformContactLinks(stitchMenuData) }, '*');
   }, [stitchMenuData]);
 
   const applyInlineEdit = (key: string, value: string) => {
@@ -113,7 +198,7 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
       return;
     }
     if (kind === 'contact' && id) {
-      const contactFields = ['phone', 'whatsapp', 'maps', 'instagram', 'tiktok', 'locationNameAr', 'workingHoursAr'];
+      const contactFields = ['phone', 'whatsapp', 'maps', 'instagram', 'facebook', 'tiktok', 'locationNameAr', 'workingHoursAr'];
       if (contactFields.includes(id)) {
         updateContact(id as keyof typeof draft.contact, value);
       }
@@ -182,7 +267,8 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
       id: catId,
       labelAr: newName.trim(),
       labelEn: newName.trim(),
-      sublabelEn: newName.trim().toUpperCase()
+      sublabelEn: newName.trim().toUpperCase(),
+      ...(activeGroup !== 'all' ? { menuGroupId: activeGroup } : {})
     };
     setDraft((prev) => ({
       ...prev,
@@ -305,12 +391,12 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
       alert('يرجى إدخال معرّف الرابط (Slug)');
       return;
     }
-    if (new Blob([draft.stitchDesignCode || '']).size > 400_000) {
-      alert('حجم تصميم Stitch يتجاوز 400 كيلوبايت. استخدم روابط مستضافة للصور والخطوط بدل تضمينها داخل الكود.');
+    if (new Blob([draft.stitchDesignCode || '']).size > MAX_HTML_DESIGN_BYTES) {
+      alert('حجم تصميم HTML يتجاوز 400 كيلوبايت. استخدم روابط مستضافة للصور والخطوط بدل تضمينها داخل الكود.');
       return;
     }
     if (draft.stitchDesignCode?.trim() && !/<!doctype\s+html|<html[\s>]/i.test(draft.stitchDesignCode)) {
-      alert('ألصق مستند HTML كاملًا من Stitch، وليس JSX أو إعدادات JSON.');
+      alert('استخدم مستند HTML كاملًا، وليس JSX أو إعدادات JSON.');
       return;
     }
 
@@ -336,6 +422,7 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
         statusTextEn: draft.statusTextEn || 'Open for orders now',
         isActive: draft.isActive !== false,
         categories: draft.categories,
+        menuGroups: draft.menuGroups || [],
         products: draft.products,
         items: draft.products.map((p) => ({
           name: p.nameAr,
@@ -355,8 +442,9 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
         updatedAt: new Date().toISOString()
       };
 
-      const docRef = doc(db, 'restaurants', cleanSlug);
-      await setDoc(docRef, payload, { merge: true });
+      // Remove undefined optional fields before writing; Firestore rejects undefined values.
+      const safePayload = JSON.parse(JSON.stringify(payload));
+      await publishVersionedMenu(initialRestaurant.id, safePayload);
 
       showToast('🎉 تم حفظ ونشر جميع التعديلات المرئية إلى Firebase بنجاح!');
       onSaved({ ...draft, slug: cleanSlug });
@@ -369,16 +457,16 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
   };
 
   // Filter products by selected active category
-  const categoriesWithProducts = draft.categories.map((cat: Category) => {
+  const categoriesWithProducts = filteredDraftMenu.categories.map((cat: Category) => {
     if (cat.id === 'all') {
       return {
         ...cat,
-        items: draft.products
+        items: filteredDraftMenu.products
       };
     }
     return {
       ...cat,
-      items: draft.products.filter((p: MenuItem) => p.categoryId === cat.id)
+      items: filteredDraftMenu.products.filter((p: MenuItem) => p.categoryId === cat.id)
     };
   });
 
@@ -469,11 +557,14 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
             <input
               type="text"
               value={draft.slug}
-              onChange={(e) => updateField('slug', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+              readOnly
+              title="معرّف ثابت للحفاظ على روابط وQR المنشورة"
               className="w-24 bg-transparent font-mono font-bold text-white focus:outline-none"
               placeholder="slug"
             />
           </div>
+
+          <button type="button" onClick={() => setShowQr(true)} className="rounded-xl border border-amber-400/40 px-3 py-2 text-xs text-amber-300">رابط المنيو و QR</button>
 
           {/* Device Frame View Mode Toggle */}
           <div className="hidden sm:flex bg-zinc-800 p-1 rounded-xl border border-zinc-700">
@@ -520,24 +611,85 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
         </div>
       </header>
 
+      {/* The whole editor body scrolls, including all expanded sections. */}
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain" aria-label="محتوى محرر المنيو">
+      <div className="flex justify-end bg-zinc-950 px-4 pt-3"><button type="button" onClick={() => editorCanvasRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className="rounded-lg border border-amber-300/40 px-3 py-2 text-xs font-bold text-amber-300">الانتقال لمعاينة المنيو ↓</button></div>
+      <details className="z-30 bg-zinc-950 text-white border-b border-zinc-800 px-4 py-3">
+        <summary className="cursor-pointer text-xs font-bold text-amber-300">معاينة للعميل قبل النشر</summary>
+        <div className="mx-auto max-w-5xl space-y-2 pt-3 text-xs text-zinc-300">
+          <p>احفظ مسودة خاصة للعودة إليها لاحقًا، أو أنشئ رابطًا غير مدرج ينتهي بعد 7 أيام لنسخة من التعديلات الحالية دون تغيير المنيو المنشور. كل من يمتلك الرابط يمكنه رؤيته.</p>
+          <div className="flex flex-wrap gap-2"><button disabled={saving} onClick={saveDraft} className="rounded-lg border border-white/20 px-3 py-2">حفظ المسودة</button><button disabled={saving} onClick={loadDraft} className="rounded-lg border border-white/20 px-3 py-2">تحميل المسودة المحفوظة</button></div>
+          {isTemporaryMenuUrl(menuUrl(draft.slug, publicBaseUrl)) && <p className="text-amber-300">هذا عنوان معاينة مؤقت؛ استخدم الموقع المنشور عند مشاركة المعاينة مع العميل.</p>}
+          <button disabled={creatingPreview} onClick={createPreview} className="rounded-lg border border-amber-300/40 px-3 py-2 text-amber-300">{creatingPreview ? 'جارٍ الإنشاء…' : 'إنشاء رابط المعاينة'}</button>
+          {previewUrl && <div className="space-y-2"><div dir="ltr" className="break-all">{previewUrl}</div><div className="flex flex-wrap gap-2"><button onClick={() => navigator.clipboard.writeText(previewUrl)} className="rounded-lg bg-white/10 px-3 py-2">نسخ الرابط</button><a href={previewUrl} target="_blank" rel="noopener noreferrer" className="rounded-lg bg-white/10 px-3 py-2">فتح المعاينة</a>{draft.client?.phone && <a target="_blank" rel="noopener noreferrer" href={`https://wa.me/${whatsappDigits(draft.client.phone)}?text=${encodeURIComponent(`مرحبًا، هذه معاينة منيو ${draft.name} قبل النشر: ${previewUrl}`)}`} className="rounded-lg bg-green-700 px-3 py-2">فتح واتساب العميل</a>}</div><p>الرابط لقطة ثابتة؛ أنشئ رابطًا جديدًا بعد تعديل المسودة.</p></div>}
+        </div>
+      </details>
+
+      <details onToggle={(event) => { if (event.currentTarget.open) void loadVersions(); }} className="z-30 bg-zinc-950 text-white border-b border-zinc-800 px-4 py-3">
+        <summary className="cursor-pointer text-xs font-bold text-amber-300">النسخ السابقة واستعادة المنيو</summary>
+        <div className="mx-auto max-w-5xl space-y-2 pt-3 text-xs text-zinc-300">
+          <p>تُحفظ نسخة من المنيو المنشور قبل كل نشر جديد. الاستعادة تنشر النسخة السابقة وتحفظ الحالية أولًا.</p>
+          {versionError && <p className="text-red-300">{versionError}</p>}
+          {!versions.length && !versionError && <p>لا توجد نسخ سابقة بعد، أو جارٍ التحميل.</p>}
+          {versions.map(version => <div key={version.id} className="flex items-center justify-between gap-2 rounded-lg bg-white/5 p-2"><span>{version.date}</span><button disabled={saving} onClick={() => restoreVersion(version.menu)} className="rounded-lg border border-amber-300/40 px-3 py-2 text-amber-300">استعادة</button></div>)}
+        </div>
+      </details>
+
+      <details className="bg-zinc-950 text-white border-b border-zinc-800 px-4 py-3">
+        <summary className="cursor-pointer text-sm font-bold text-amber-300">استيراد بيانات المنيو التجريبية</summary>
+        <div className="mx-auto max-w-5xl space-y-3 pt-3 text-xs text-zinc-300">
+          <p>اختر ملف بيانات المنيو بصيغة JSON لملء الأصناف والهوية وروابط التواصل داخل المحرر. ستظل التغييرات غير منشورة حتى تضغط «حفظ ونشر».</p>
+          <label className="inline-flex cursor-pointer rounded-lg border border-amber-300/40 px-3 py-2 font-bold text-amber-300">اختيار ملف بيانات JSON<input type="file" accept=".json,application/json" className="sr-only" onChange={importMenuFile}/></label>
+        </div>
+      </details>
+
+      <details className="bg-zinc-950 text-white border-b border-zinc-800 px-4 py-3">
+        <summary className="cursor-pointer text-sm font-bold text-amber-300">أيقونات وروابط التواصل</summary>
+        <div className="mx-auto max-w-5xl space-y-3 pt-3 text-xs text-zinc-300">
+          <section className="space-y-3 rounded-xl border border-white/10 bg-black/20 p-4">
+            <div><h3 className="text-sm font-bold text-amber-300">روابط تواصل المنشأة</h3><p className="mt-1 text-zinc-400">أدخل رقم المحل للاتصال ورقم واتساب، ثم روابط الحسابات والموقع. اترك أي حقل فارغًا لإخفاء أيقونته. بعد التعديل اضغط «حفظ ونشر».</p></div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {([
+                ['phone', 'رقم الاتصال', '+967 771234567'],
+                ['whatsapp', 'رقم واتساب للمحادثة', '+967 771234567'],
+                ['maps', 'رابط موقع Google Maps', 'https://maps.app.goo.gl/...'],
+                ['instagram', 'رابط إنستقرام', 'https://instagram.com/...'],
+                ['facebook', 'رابط فيسبوك', 'https://facebook.com/...'],
+                ['tiktok', 'رابط تيك توك', 'https://tiktok.com/@...'],
+                ['locationNameAr', 'اسم أو وصف العنوان (اختياري)', 'صنعاء، شارع ...'],
+              ] as const).map(([key, label, placeholder]) => <label key={key} className="space-y-1"><span>{label}</span><input type="text" dir={key === 'locationNameAr' ? 'rtl' : 'ltr'} value={draft.contact[key] || ''} onChange={e => updateContact(key, e.target.value)} placeholder={placeholder} className="w-full rounded-xl border border-white/10 bg-zinc-900 p-2.5 text-sm text-white focus:border-amber-400 focus:outline-none"/></label>)}
+            </div>
+            <p className="text-zinc-400">الأرقام اليمنية المحلية تُحوّل تلقائيًا إلى +967؛ ويمكن إدخال مفتاح دولة آخر. الروابط الخارجية تحتاج رابطًا صالحًا.</p>
+            {(['phone', 'whatsapp'] as const).filter(key => draft.contact[key]?.trim() && !getContactLinks(draft.contact).some(link => link.kind === key)).map(key => <p key={key} className="text-amber-300">تحقق من رقم {key === 'phone' ? 'الاتصال' : 'واتساب'}؛ لن يظهر الزر حتى يكون الرقم صالحًا.</p>)}
+            {(['maps', 'instagram', 'facebook', 'tiktok'] as const).filter(key => draft.contact[key]?.trim() && !safeWebUrl(draft.contact[key])).map(key => <p key={key} className="text-amber-300">تحقق من رابط {key}؛ لن يظهر الزر حتى يكون الرابط صالحًا.</p>)}
+          </section>
+          <p className="text-zinc-400">معاينة الأيقونات: تظهر الأيقونة معطلة هنا إلى أن تضيف بياناتها. في منيو الزبون لا تظهر الأيقونات غير المكتملة.</p>
+          <ContactBar contact={draft.contact} primaryColor={primaryColor} showMissing />
+        </div>
+      </details>
+
+      <details className="z-30 bg-zinc-950 text-white border-b border-zinc-800 px-4 py-3">
+        <summary className="cursor-pointer text-xs font-bold text-amber-300">القوائم الداخلية والتعديلات السريعة</summary>
+        <div className="mx-auto max-w-5xl space-y-4 pt-3 text-xs text-zinc-300">
+          <p>يمكنك إنشاء صبوح وغداء وعشاء داخل المنيو الواحد وربط كل قسم بالقائمة المناسبة. تظهر التغييرات للزوار بعد الحفظ والنشر.</p>
+          <div className="flex flex-wrap items-center gap-2"><span>إضافة سريعة:</span>{['صبوح', 'غداء', 'عشاء'].map(name => <button key={name} type="button" disabled={(draft.menuGroups || []).some(g => g.labelAr === name)} onClick={() => setDraft(prev => ({ ...prev, menuGroups: [...(prev.menuGroups || []), { id: `menu-${Date.now()}-${name}`, labelAr: name }] }))} className="rounded-lg border border-amber-300/40 px-3 py-2 text-amber-300 disabled:opacity-40">+ {name}</button>)}</div>
+          <div className="flex flex-wrap gap-2">{(draft.menuGroups || []).map(group => <span key={group.id} className="rounded-lg bg-white/10 px-3 py-2">{group.labelAr} <button onClick={() => { if (confirm('حذف اسم القائمة الداخلية؟ لن تُحذف الأقسام أو الأصناف.')) setDraft(prev => ({ ...prev, menuGroups: (prev.menuGroups || []).filter(g => g.id !== group.id), categories: prev.categories.map(c => c.menuGroupId === group.id ? { ...c, menuGroupId: undefined } : c) })); }} className="mr-2 text-red-300" aria-label={`حذف ${group.labelAr}`}>×</button></span>)}<button onClick={() => { const name = prompt('اسم القائمة الداخلية (مثل صبوح):')?.trim(); if (name) setDraft(prev => ({ ...prev, menuGroups: [...(prev.menuGroups || []), { id: `menu-${Date.now()}`, labelAr: name }] })); }} className="rounded-lg border border-amber-300/40 px-3 py-2 text-amber-300">+ قائمة داخلية</button></div>
+          <button onClick={handleAddCategory} className="rounded-lg border border-white/20 px-3 py-2">+ إضافة قسم</button>
+          <div className="space-y-2">{draft.categories.filter(c => c.id !== 'all').map(category => <label key={category.id} className="flex flex-wrap items-center gap-2 rounded-lg bg-white/5 p-2"><span className="min-w-28">القسم: {category.labelAr}</span><select value={category.menuGroupId || ''} onChange={e => setDraft(prev => ({ ...prev, categories: prev.categories.map(c => c.id === category.id ? { ...c, menuGroupId: e.target.value || undefined } : c) }))} className="rounded-lg bg-zinc-800 p-2"><option value="">بدون قائمة داخلية</option>{(draft.menuGroups || []).map(g => <option key={g.id} value={g.id}>{g.labelAr}</option>)}</select><button type="button" onClick={() => handleAddNewItemToCategory(category.id)} className="rounded-lg border border-white/20 px-2 py-2">+ إضافة صنف للقسم</button></label>)}</div>
+          <p>بعد إضافة قائمة، اخترها من أمام كل قسم لربطه بها. ستظهر أزرار القوائم في المعاينة أسفل المحرر. تصميم HTML المخصص يجب أن يقرأ البيانات المرسلة ليعكس التصفية.</p>
+
+          <div className="space-y-2">{draft.products.map(item => <div key={item.id} className="flex flex-wrap items-center gap-2 rounded-lg bg-white/5 p-2"><span className="min-w-32 flex-1">{item.nameAr}</span><label>السعر <input aria-label={`سعر ${item.nameAr}`} type="number" min="0" value={item.price} onChange={e => handleUpdateItem(item.id, { price: Number(e.target.value) || 0 })} className="w-20 rounded-lg bg-zinc-800 p-2"/></label><button onClick={() => handleUpdateItem(item.id, { isSoldOut: !item.isSoldOut })} className="rounded-lg border border-white/20 px-2 py-2">{item.isSoldOut ? 'إعادة الإتاحة' : 'نفد مؤقتًا'}</button><button onClick={() => handleDeleteItem(item.id)} className="rounded-lg border border-red-400/30 px-2 py-2 text-red-300">حذف</button></div>)}</div>
+        </div>
+      </details>
 
       {/* WORKSPACE CANVAS */}
       <details className="z-30 bg-zinc-950 text-white border-b border-zinc-800 px-4 py-3">
-          <summary className="cursor-pointer text-xs font-bold text-amber-300">إضافة / استبدال تصميم Stitch</summary>
-          <div className="max-w-5xl mx-auto pt-3 space-y-2">
-            <p className="text-[11px] text-zinc-400">الصق نسخة HTML جديدة من Stitch. تظهر معاينتها بجانب المحرر وتتحدث عند تعديل البيانات. يجب أن يقرأ التصميم <code dir="ltr">window.MENU_DATA</code> ويعيد العرض عند حدث <code dir="ltr">menu-data-update</code>.</p>
-            <textarea
-              value={draft.stitchDesignCode || ''}
-              onChange={(e) => updateField('stitchDesignCode', e.target.value)}
-              rows={8}
-              dir="ltr"
-              className="w-full rounded-xl border border-zinc-700 bg-zinc-900 p-3 font-mono text-xs text-amber-100 focus:outline-none focus:border-amber-400"
-              aria-label="كود تصميم Stitch"
-            />
-            <div className="text-left text-[10px] text-zinc-500">{new Blob([draft.stitchDesignCode || '']).size.toLocaleString()} / 400,000 بايت</div>
+          <summary className="cursor-pointer text-xs font-bold text-amber-300">إضافة / استبدال تصميم HTML</summary>
+          <div className="max-w-5xl mx-auto pt-3">
+            <HtmlDesignInput value={draft.stitchDesignCode || ''} onChange={(value) => updateField('stitchDesignCode', value)} />
           </div>
       </details>
-      <div className={`flex-1 min-h-0 overflow-y-auto no-scrollbar p-2 sm:p-4 xl:p-6 bg-zinc-200/60 flex justify-center items-start`}>
+      <div ref={editorCanvasRef} className="p-2 sm:p-4 xl:p-6 bg-[#18181b] flex justify-center items-start">
         <div
           className={`${draft.stitchDesignCode ? 'hidden' : 'block'} w-full bg-white transition-all duration-300 shadow-2xl relative justify-self-center ${
             isMobileFrame
@@ -598,9 +750,11 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
               />
             </div>
 
+            <MenuGroupBar groups={draft.menuGroups} active={activeGroup} onSelect={id => { setActiveMenuGroup(id); setActiveCategory('all'); }} primaryColor={primaryColor}/>
+
             {/* 2. Interactive Category Tabs with (+) Button */}
             <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-[#F1F1F4] px-4 flex items-center gap-4 overflow-x-auto no-scrollbar">
-              {draft.categories.map((cat) => {
+              {filteredDraftMenu.categories.map((cat) => {
                 const isActive = activeCategory === cat.id;
                 return (
                   <div key={cat.id} className="relative group/tab flex items-center">
@@ -836,53 +990,26 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
               ))}
             </div>
 
-            {/* 4. Footer Contact Editable */}
-            <div className="p-6 bg-zinc-50 border-t border-[#F1F1F4] text-center space-y-4">
-              <h4 className="text-xs font-bold text-[#111111]">
-                بيانات التواصل (انقر للتعديل)
-              </h4>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <input
-                  type="text"
-                  value={draft.contact.phone || ''}
-                  onChange={(e) => updateContact('phone', e.target.value)}
-                  placeholder="رقم الهاتف (+966...)"
-                  className="p-2 rounded-xl border border-zinc-200 bg-white text-xs text-center focus:outline-none"
-                />
-                <input
-                  type="text"
-                  value={draft.contact.whatsapp || ''}
-                  onChange={(e) => updateContact('whatsapp', e.target.value)}
-                  placeholder="رقم الواتساب (+966...)"
-                  className="p-2 rounded-xl border border-zinc-200 bg-white text-xs text-center focus:outline-none"
-                />
-              </div>
-              <input
-                type="text"
-                value={draft.contact.locationNameAr || ''}
-                onChange={(e) => updateContact('locationNameAr', e.target.value)}
-                placeholder="العنوان (مثلاً: الرياض، حي الملقا)"
-                className="w-full p-2 rounded-xl border border-zinc-200 bg-white text-xs text-center focus:outline-none"
-              />
-            </div>
+            <Footer contact={draft.contact} restaurantName={draft.name} primaryColor={primaryColor} lang="ar" />
           </div>
         </div>
         {draft.stitchDesignCode && (
           <section className={`w-full ${isMobileFrame ? 'max-w-[430px]' : 'max-w-none'} justify-self-center space-y-2`}>
-            <div className="flex items-center justify-between px-2 text-xs font-bold text-zinc-700">
+            <div className="flex items-center justify-between px-2 text-xs font-bold text-zinc-200">
               <span className="flex items-center gap-2"><Eye className="w-4 h-4" /> محرر التصميم المباشر</span>
               <span className="text-[10px] text-zinc-500">انقر على النص أو الصورة داخل المنيو لتعديلها</span>
             </div>
-            <div className={`h-[calc(100vh-150px)] min-h-[620px] overflow-hidden bg-white shadow-2xl ${isMobileFrame ? 'rounded-[28px] border-[7px] border-zinc-900' : 'rounded-xl border border-zinc-300'}`}>
+            <div className={`flex h-[calc(100vh-150px)] min-h-[620px] flex-col overflow-hidden bg-white shadow-2xl ${isMobileFrame ? 'rounded-[28px] border-[7px] border-zinc-900' : 'rounded-xl border border-zinc-300'}`}>
+              <MenuGroupBar groups={draft.menuGroups} active={activeGroup} onSelect={id => { setActiveMenuGroup(id); setActiveCategory('all'); }} primaryColor={primaryColor}/>
               <iframe
                 ref={stitchPreviewRef}
                 title={`محرر تصميم ${draft.name}`}
-                className="h-full w-full border-0 bg-white"
-                sandbox="allow-scripts allow-forms allow-popups"
+                className="min-h-0 flex-1 w-full border-0 bg-white"
+                sandbox="allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
                 referrerPolicy="strict-origin-when-cross-origin"
                 srcDoc={stitchPreviewDocument}
                 onLoad={() => {
-                  stitchPreviewRef.current?.contentWindow?.postMessage({ type: 'MENU_DATA_UPDATE', payload: stitchMenuData }, '*');
+                  stitchPreviewRef.current?.contentWindow?.postMessage({ type: 'MENU_DATA_UPDATE', payload: withPlatformContactLinks(stitchMenuData) }, '*');
                   stitchPreviewRef.current?.contentWindow?.postMessage({ type: 'MENU_EDITOR_MODE', enabled: true }, '*');
                 }}
               />
@@ -890,13 +1017,14 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
           </section>
         )}
       </div>
+      </div>
 
       {/* MODAL: IMAGE URL PROMPT */}
       {editingImageTarget && (
         <div className="fixed inset-0 z-60 bg-black/70 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-zinc-100 pb-2">
-              <h3 className="text-sm font-bold text-[#111111]">
+          <div className="bg-[#272729] border border-zinc-700 text-zinc-100 rounded-3xl p-6 w-full max-w-md shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-zinc-700 pb-2">
+              <h3 className="text-sm font-bold text-white">
                 {editingImageTarget.type === 'logo' ? 'تحديث رابط الشعار' : 'تحديث رابط صورة الوجبة'}
               </h3>
               <button onClick={() => setEditingImageTarget(null)} className="text-zinc-400 hover:text-black">
@@ -910,7 +1038,7 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
                 value={imageUrlInput}
                 onChange={(e) => setImageUrlInput(e.target.value)}
                 placeholder="https://..."
-                className="w-full p-3 rounded-xl border border-zinc-200 text-xs focus:outline-none focus:border-[#A33900]"
+                className="w-full p-3 rounded-xl border border-zinc-700 bg-zinc-900 text-white text-xs focus:outline-none focus:border-amber-400"
                 autoFocus
               />
 
@@ -929,7 +1057,7 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
             <div className="flex justify-end gap-2 pt-2">
               <button
                 onClick={() => setEditingImageTarget(null)}
-                className="px-4 py-2 rounded-xl border border-zinc-200 text-xs font-bold text-zinc-600 hover:bg-zinc-50"
+                className="px-4 py-2 rounded-xl border border-zinc-700 text-xs font-bold text-zinc-200 hover:bg-zinc-800"
               >
                 إلغاء
               </button>
@@ -943,6 +1071,7 @@ export const VisualMenuEditor: React.FC<VisualMenuEditorProps> = ({
           </div>
         </div>
       )}
+      {showQr && <div className="relative z-[200]"><QRCodeModal restaurant={draft} publicBaseUrl={publicBaseUrl} isOpen onClose={() => setShowQr(false)} /></div>}
     </div>
   );
 };

@@ -1,3 +1,6 @@
+import { getContactLinks, safeWebUrl } from '../lib/contactLinks';
+import { GanjiCredit } from './GanjiCredit';
+import { Facebook } from 'lucide-react';
 import React, { useState } from 'react';
 import { RestaurantContact } from '../types/restaurant';
 import { Check, Copy } from 'lucide-react';
@@ -17,6 +20,8 @@ export const Footer: React.FC<FooterProps> = ({
 }) => {
   const isAr = lang === 'ar';
   const [copied, setCopied] = useState(false);
+  const phoneLink = getContactLinks(contact).find(link => link.kind === 'phone');
+  const whatsappLink = getContactLinks(contact).find(link => link.kind === 'whatsapp');
 
   const handleCopyPhone = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -27,7 +32,7 @@ export const Footer: React.FC<FooterProps> = ({
   };
 
   const hasAnySocial = Boolean(
-    contact.tiktok || contact.instagram || contact.maps || contact.whatsapp || contact.phone
+    contact.tiktok || contact.instagram || contact.facebook || contact.maps || contact.whatsapp || contact.phone
   );
 
   return (
@@ -46,9 +51,9 @@ export const Footer: React.FC<FooterProps> = ({
       {hasAnySocial && (
         <div className="flex items-center justify-center gap-3.5 flex-wrap">
           {/* TikTok */}
-          {contact.tiktok && (
+          {safeWebUrl(contact.tiktok) && (
             <a
-              href={contact.tiktok}
+              href={safeWebUrl(contact.tiktok)}
               target="_blank"
               rel="noopener noreferrer"
               aria-label="TikTok"
@@ -70,9 +75,9 @@ export const Footer: React.FC<FooterProps> = ({
           )}
 
           {/* Instagram */}
-          {contact.instagram && (
+          {safeWebUrl(contact.instagram) && (
             <a
-              href={contact.instagram}
+              href={safeWebUrl(contact.instagram)}
               target="_blank"
               rel="noopener noreferrer"
               aria-label="Instagram"
@@ -92,10 +97,16 @@ export const Footer: React.FC<FooterProps> = ({
             </a>
           )}
 
+          {safeWebUrl(contact.facebook) && (
+            <a href={safeWebUrl(contact.facebook)} target="_blank" rel="noopener noreferrer" aria-label="Facebook" className="contact-btn w-11 h-11 rounded-full border border-[#F1F1F4] bg-white text-[#111111]/80 flex items-center justify-center shadow-xs hover:opacity-70">
+              <Facebook className="w-5 h-5" style={{ color: primaryColor }}/>
+            </a>
+          )}
+
           {/* Location / Google Maps */}
-          {contact.maps && (
+          {safeWebUrl(contact.maps) && (
             <a
-              href={contact.maps}
+              href={safeWebUrl(contact.maps)}
               target="_blank"
               rel="noopener noreferrer"
               aria-label="Location"
@@ -116,9 +127,9 @@ export const Footer: React.FC<FooterProps> = ({
           )}
 
           {/* WhatsApp */}
-          {contact.whatsapp && (
+          {whatsappLink && (
             <a
-              href={`https://wa.me/${contact.whatsapp.replace(/[^0-9]/g, '')}`}
+              href={whatsappLink.href}
               target="_blank"
               rel="noopener noreferrer"
               aria-label="WhatsApp"
@@ -139,9 +150,9 @@ export const Footer: React.FC<FooterProps> = ({
           )}
 
           {/* Phone */}
-          {contact.phone && (
+          {phoneLink && (
             <a
-              href={`tel:${contact.phone}`}
+              href={phoneLink.href}
               aria-label="Phone"
               className="contact-btn w-11 h-11 rounded-full border border-[#F1F1F4] bg-white text-[#111111]/80 hover:text-white flex items-center justify-center shadow-xs transition-all duration-200 hover:-translate-y-0.5"
               onMouseEnter={(e) => {
@@ -191,6 +202,7 @@ export const Footer: React.FC<FooterProps> = ({
           © {new Date().getFullYear()} {restaurantName.toUpperCase()}. ALL RIGHTS RESERVED.
         </p>
       </div>
+      <GanjiCredit />
     </footer>
   );
 };

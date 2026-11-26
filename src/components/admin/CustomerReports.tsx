@@ -1,13 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { addDoc, collection, doc, serverTimestamp, Timestamp, updateDoc } from 'firebase/firestore';
+import { addDoc, collection, doc, getDocs, serverTimestamp, Timestamp, updateDoc } from 'firebase/firestore';
 import { ArrowUpRight, CalendarDays, FileBarChart2, MapPin, MessageCircle, Pencil, Phone, Search, X } from 'lucide-react';
 import { db } from '../../lib/firebase';
 import { RestaurantData } from '../../types/restaurant';
 import { buildReportAnalytics } from '../../lib/reportAnalytics';
 import { ReportData, ReportPreview } from '../PublicReport';
+import { ClientWorkspace, WorkData, WORK_STAGES } from './ClientWorkspace';
+import { normalizePhone, whatsappDigits } from '../../lib/phone';
 
 type VenueType = { id: string; labelAr: string };
-type Props = { restaurants: RestaurantData[]; venueTypes?: VenueType[]; onToast: (message: string) => void };
+type Props = { restaurants: RestaurantData[]; venueTypes?: VenueType[]; publicBaseUrl?: string; onToast: (message: string) => void };
 const today = () => new Date().toLocaleDateString('en-CA');
 const initialStart = () => { const d = new Date(); d.setDate(1); return d.toLocaleDateString('en-CA'); };
 const typeName = (type?: string) => type === 'cafe' ? 'مقهى' : type === 'restaurant' ? 'مطعم' : type || 'منشأة';
@@ -29,13 +31,23 @@ const DEMO_CUSTOMER: RestaurantData = {
   ],
 };
 
-export const CustomerReports: React.FC<Props> = ({ restaurants, venueTypes = [], onToast }) => {
+export const CustomerReports: React.FC<Props> = ({ restaurants, venueTypes = [], publicBaseUrl, onToast }) => {
   const demoOnly = restaurants.length === 0;
   const [clients, setClients] = useState(restaurants);
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<RestaurantData | null>(null);
   const [preview, setPreview] = useState<ReportData | null>(null);
   const [editing, setEditing] = useState<RestaurantData | null>(null);
+  const [workspace, setWorkspace] = useState<RestaurantData | null>(null);
+  const [workRecords, setWorkRecords] = useState<Record<string, WorkData>>({});
+  const [workError, setWorkError] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    getDocs(collection(db, 'clientWorkspace')).then(snap => {
+      if (alive) setWorkRecords(Object.fromEntries(snap.docs.map(d => [d.id, d.data() as WorkData])));
+    }).catch(() => alive && setWorkError(true));
+    return () => { alive = false; };
+  }, []);
   useEffect(() => setClients(restaurants), [restaurants]);
   const visibleClients = demoOnly ? [DEMO_CUSTOMER] : clients;
   const filtered = useMemo(() => visibleClients.filter(r => `${r.name} ${r.client?.name || ''} ${r.id} ${r.contact?.phone || ''} ${r.client?.phone || ''}`.toLowerCase().includes(query.toLowerCase())), [visibleClients, query]);
@@ -46,13 +58,20 @@ export const CustomerReports: React.FC<Props> = ({ restaurants, venueTypes = [],
       <div><p className="text-sm text-zinc-400">بيانات العميل وصاحب النشاط التجاري وتقاريره</p><h2 className="mt-1 text-2xl font-black">إدارة العملاء</h2></div>
       <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5"><Search size={16} className="text-zinc-400"/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="ابحث بالاسم أو الكود أو الرقم" className="w-64 max-w-full bg-transparent text-sm outline-none"/></label>
     </header>
+    {!demoOnly && <section className="rounded-2xl border border-white/10 bg-[#202022] p-4">
+      <h3 className="font-black text-amber-300">مراحل العمل والتذكيرات</h3>
+      {workError ? <p className="mt-2 text-xs text-red-300">تعذر تحميل مراحل العمل.</p> : <>
+        <div className="mt-3 flex flex-wrap gap-2">{WORK_STAGES.map(stage => <span key={stage} className="rounded-lg bg-white/5 px-2 py-1 text-xs">{stage}: {clients.filter(r => (workRecords[r.id]?.stage || 'عميل جديد') === stage).length}</span>)}</div>
+        {clients.filter(r => workRecords[r.id]?.reminderDate && workRecords[r.id].reminderDate <= today()).map(r => <button key={r.id} onClick={() => setWorkspace(r)} className="mt-3 ml-2 rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-right text-xs text-amber-100">تذكير: {r.name} · {workRecords[r.id].reminderDate} · {workRecords[r.id].reminderNote || 'متابعة العميل'}</button>)}
+      </>}
+    </section>}
     {demoOnly && <div className="rounded-xl border border-amber-300/20 bg-amber-300/[0.06] px-4 py-3 text-xs leading-5 text-amber-100"><strong>وضع المعاينة:</strong> هذه بطاقة عميل افتراضي لتجربة شكل البيانات والتقرير. لن تُحفظ بياناته أو يُرسل تقرير حقيقي.</div>}
     <div className="grid gap-4 xl:grid-cols-2">
       {filtered.map(r => {
         const customerPhone = r.client?.phone || '';
         const businessPhone = r.contact?.phone || r.contact?.whatsapp || '';
-        const customerDigits = phoneDigits(customerPhone);
-        const businessDigits = phoneDigits(r.contact?.whatsapp || businessPhone);
+        const customerDigits = whatsappDigits(customerPhone);
+        const businessDigits = whatsappDigits(r.contact?.whatsapp || businessPhone);
         return <article key={r.id} className="overflow-hidden rounded-2xl border border-white/10 bg-[#202022]">
           <div className="p-4 sm:p-5">
             <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-[11px] font-bold text-[#F7E354]">بيانات العميل</p><h3 className="truncate text-lg font-extrabold">{r.client?.name || 'اسم العميل غير مسجل'}</h3></div>{!demoOnly && <button onClick={() => setEditing(r)} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-2 text-xs font-bold text-zinc-300 hover:bg-white/5"><Pencil size={13}/> تعديل البيانات</button>}</div>
@@ -61,7 +80,7 @@ export const CustomerReports: React.FC<Props> = ({ restaurants, venueTypes = [],
               <InfoLine icon={<FileBarChart2 size={15}/>} label="نشاط العميل" value={`${venueLabel(r)} · كود ${r.id}`}/>
               <div className="flex min-w-0 items-center gap-2 text-zinc-300"><Phone size={15} className="shrink-0 text-zinc-500"/><span className="text-xs text-zinc-500">رقم العميل</span><span className="truncate" dir="ltr">{customerPhone || 'غير مسجل'}</span></div>
               <div className="flex items-center gap-2">
-                {customerDigits ? <><a href={`tel:${customerPhone}`} className="inline-flex items-center gap-1 rounded-lg bg-emerald-500/10 px-2.5 py-1.5 text-xs font-bold text-emerald-300"><Phone size={13}/> اتصال</a><a target="_blank" rel="noreferrer" href={`https://wa.me/${customerDigits}`} className="inline-flex items-center gap-1 rounded-lg bg-green-500/10 px-2.5 py-1.5 text-xs font-bold text-green-300"><MessageCircle size={13}/> واتساب</a></> : <span className="text-xs text-amber-200">أضف رقم العميل لتفعيل الاتصال</span>}
+                {customerDigits ? <><a href={`tel:${normalizePhone(customerPhone)}`} className="inline-flex items-center gap-1 rounded-lg bg-emerald-500/10 px-2.5 py-1.5 text-xs font-bold text-emerald-300"><Phone size={13}/> اتصال</a><a target="_blank" rel="noreferrer" href={`https://wa.me/${customerDigits}`} className="inline-flex items-center gap-1 rounded-lg bg-green-500/10 px-2.5 py-1.5 text-xs font-bold text-green-300"><MessageCircle size={13}/> واتساب</a></> : <span className="text-xs text-amber-200">أضف رقم العميل لتفعيل الاتصال</span>}
               </div>
             </div>
           </div>
@@ -69,7 +88,8 @@ export const CustomerReports: React.FC<Props> = ({ restaurants, venueTypes = [],
             <div className="flex items-start justify-between gap-3"><div className="flex min-w-0 items-center gap-3">{r.logoUrl ? <img src={r.logoUrl} alt={`شعار ${r.name}`} className="h-10 w-10 shrink-0 rounded-xl bg-white/5 object-cover"/> : <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white/5 text-zinc-400"><FileBarChart2 size={18}/></div>}<div className="min-w-0"><p className="text-[11px] font-bold text-zinc-500">بيانات النشاط التجاري</p><h4 className="mt-1 truncate font-extrabold">{r.name}</h4><p className="mt-1 text-xs text-zinc-400">{venueLabel(r)}{r.businessInfo ? ` · ${r.businessInfo}` : ''}</p></div></div><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${r.isActive === false ? 'bg-zinc-700 text-zinc-300' : 'bg-emerald-400/10 text-emerald-300'}`}>{r.isActive === false ? 'متوقف' : 'نشط'}</span></div>
             <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-zinc-400"><InfoLine icon={<MapPin size={14}/>} label="موقع النشاط" value={r.contact?.locationNameAr} href={r.contact?.maps}/><span className="inline-flex items-center gap-1.5"><Phone size={14}/><span dir="ltr">{businessPhone || 'رقم المحل غير مسجل'}</span></span></div>
             <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-white/10 pt-3">
-              <div className="flex gap-2">{businessPhone && <><a href={`tel:${businessPhone}`} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-2 text-xs font-bold text-zinc-300"><Phone size={13}/> اتصال بالمحل</a><a target="_blank" rel="noreferrer" href={`https://wa.me/${businessDigits}`} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-2 text-xs font-bold text-zinc-300"><MessageCircle size={13}/> واتساب المحل</a></>}</div>
+              <div className="flex gap-2">{businessPhone && <><a href={`tel:${normalizePhone(businessPhone)}`} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-2 text-xs font-bold text-zinc-300"><Phone size={13}/> اتصال بالمحل</a><a target="_blank" rel="noreferrer" href={`https://wa.me/${businessDigits}`} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-2 text-xs font-bold text-zinc-300"><MessageCircle size={13}/> واتساب المحل</a></>}</div>
+              {!demoOnly && <button onClick={() => setWorkspace(r)} className="inline-flex items-center gap-2 rounded-xl border border-amber-300/40 px-3 py-2 text-xs font-bold text-amber-300">ملف العمل والتسليم</button>}
               <button onClick={() => setSelected(r)} className="inline-flex items-center gap-2 rounded-xl bg-[#F7E354] px-3 py-2 text-xs font-black text-zinc-900"><FileBarChart2 size={15}/>{demoOnly ? 'معاينة التقرير' : 'إعداد التقرير'}</button>
             </div>
           </div>
@@ -77,6 +97,7 @@ export const CustomerReports: React.FC<Props> = ({ restaurants, venueTypes = [],
       })}
       {!filtered.length && <div className="col-span-full rounded-2xl border border-dashed border-white/15 p-10 text-center text-sm text-zinc-400">لا توجد نتائج مطابقة.</div>}
     </div>
+    {workspace && <ClientWorkspace restaurant={workspace} publicBaseUrl={publicBaseUrl} onClose={() => setWorkspace(null)} onUpdated={(id, data) => setWorkRecords(current => ({ ...current, [id]: data }))}/> }
     {editing && <ClientEditor restaurant={editing} onClose={() => setEditing(null)} onToast={onToast} onSave={updated => setClients(current => current.map(r => r.id === updated.id ? updated : r))}/>}
     {selected && <ReportComposer restaurant={selected} onClose={() => setSelected(null)} onToast={onToast} onPreview={setPreview}/>}
     {preview && <ReportPreview report={preview} onClose={() => setPreview(null)}/>}
@@ -119,6 +140,7 @@ function ReportComposer({ restaurant, onClose, onToast, onPreview }: { restauran
   const customerPhone = restaurant.client?.phone || '';
   const chooseRange = (kind: 'week' | 'month') => { const d = new Date(); if (kind === 'week') d.setDate(d.getDate() - 6); else d.setDate(1); setStartDate(d.toLocaleDateString('en-CA')); setEndDate(today()); };
   const reportData: ReportData = {
+    metricsKind: 'sample',
     restaurant: { id: restaurant.id, name: restaurant.name, type: restaurant.type || 'restaurant', logoUrl: restaurant.logoUrl || '', currency: restaurant.currency || 'ر.س' },
     clientName: restaurant.client?.name || restaurant.name,
     period: { startDate, endDate }, sections: { status: includeStatus }, metrics,
@@ -133,6 +155,7 @@ function ReportComposer({ restaurant, onClose, onToast, onPreview }: { restauran
     setBusy(true);
     try {
       const ref = await addDoc(collection(db, 'publicReports'), {
+        metricsKind: 'sample',
         restaurant: { id: restaurant.id, name: restaurant.name, type: restaurant.type || 'restaurant', logoUrl: restaurant.logoUrl || '', currency: restaurant.currency || 'ر.س' },
         clientName: restaurant.client?.name || restaurant.name,
         period: { startDate, endDate }, sections: { status: includeStatus }, metrics,

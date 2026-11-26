@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { Suspense, lazy, useState, useEffect } from 'react';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
 import { useRestaurant } from './hooks/useRestaurant';
 import { Header } from './components/Header';
@@ -6,15 +6,20 @@ import { MenuItemCard } from './components/MenuItemCard';
 import { SearchModal } from './components/SearchModal';
 import { BranchInfoModal } from './components/BranchInfoModal';
 import { Footer } from './components/Footer';
+import { MenuGroupBar } from './components/MenuGroupBar';
+import { filterMenuGroup } from './lib/menuGroups';
 import { LoadingState } from './components/LoadingState';
 import { ErrorState } from './components/ErrorState';
-import { AdminDashboard } from './components/admin/AdminDashboard';
 import { Category, MenuItem } from './types/restaurant';
 import { ShieldCheck, AlertCircle } from 'lucide-react';
 import { auth } from './lib/firebase';
-import { AdminLogin } from './components/AdminLogin';
-import { PublicReport } from './components/PublicReport';
 import { buildStitchDocument } from './lib/stitchDesign';
+
+// Visitors to a menu do not download the large administration and reporting screens.
+const AdminDashboard = lazy(() => import('./components/admin/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
+const AdminLogin = lazy(() => import('./components/AdminLogin').then(m => ({ default: m.AdminLogin })));
+const PublicMenuPreview = lazy(() => import('./components/PublicMenuPreview').then(m => ({ default: m.PublicMenuPreview })));
+const PublicReport = lazy(() => import('./components/PublicReport').then(m => ({ default: m.PublicReport })));
 
 // Client-side convenience only; Firestore rules enforce this UID server-side.
 const ADMIN_UID = 'VZMngh2pukhR8r2RoZpNIopt4R82';
@@ -38,11 +43,13 @@ export default function App() {
   const [slug, setSlug] = useState<string>(getInitialSlug);
   const [lang, setLang] = useState<'ar' | 'en'>('ar');
   const [activeCategory, setActiveCategory] = useState<string>('all');
+  const [activeMenuGroup, setActiveMenuGroup] = useState<string>('all');
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
   const [isBranchInfoOpen, setIsBranchInfoOpen] = useState<boolean>(false);
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const reportToken = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('report');
+  const previewToken = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('preview');
 
   // Hook to fetch restaurant data dynamically from Firebase Firestore
   const { data: restaurant, loading, error, reload } = useRestaurant(slug);
@@ -70,6 +77,7 @@ export default function App() {
     const clean = newSlug.trim().toLowerCase();
     setSlug(clean);
     setActiveCategory('all');
+    setActiveMenuGroup('all');
     const url = new URL(window.location.href);
     url.searchParams.set('id', clean);
     url.searchParams.delete('admin');
@@ -111,12 +119,13 @@ export default function App() {
     }
   }, [lang, restaurant, isAr, viewMode]);
 
-  if (reportToken) return <PublicReport token={reportToken} />;
+  if (previewToken) return <Suspense fallback={<LoadingState />}><PublicMenuPreview token={previewToken} /></Suspense>;
+  if (reportToken) return <Suspense fallback={<LoadingState />}><PublicReport token={reportToken} /></Suspense>;
 
   // If in Admin Dashboard mode, render AdminDashboard
   if (viewMode === 'admin') {
     if (!authReady) return <LoadingState />;
-    if (!authUser) return <AdminLogin lang={lang} />;
+    if (!authUser) return <Suspense fallback={<LoadingState />}><AdminLogin lang={lang} /></Suspense>;
     if (authUser.uid !== ADMIN_UID) {
       return (
         <main dir={lang === 'ar' ? 'rtl' : 'ltr'} className="min-h-screen bg-zinc-950 text-white flex items-center justify-center p-6">
@@ -135,7 +144,7 @@ export default function App() {
             {lang === 'ar' ? 'تسجيل الخروج' : 'Sign out'}
           </button>
         </div>
-        <AdminDashboard onBackToMenu={(target) => handleToggleView('client', target)} lang={lang} />
+        <Suspense fallback={<LoadingState />}><AdminDashboard onBackToMenu={(target) => handleToggleView('client', target)} lang={lang} /></Suspense>
       </>
     );
   }
@@ -163,16 +172,19 @@ export default function App() {
   const currency = restaurant.currency || (isAr ? 'ر.س' : 'SAR');
 
   // Filter products by selected active category
-  const categoriesWithProducts = restaurant.categories.map((cat: Category) => {
+  const selectedGroup = activeMenuGroup === 'all' || (restaurant.menuGroups || []).some(group => group.id === activeMenuGroup) ? activeMenuGroup : 'all';
+  const filteredMenu = filterMenuGroup(restaurant.categories, restaurant.products, selectedGroup);
+  const displayedCategories = filteredMenu.categories;
+  const categoriesWithProducts = displayedCategories.map((cat: Category) => {
     if (cat.id === 'all') {
       return {
         ...cat,
-        items: restaurant.products
+        items: filteredMenu.products
       };
     }
     return {
       ...cat,
-      items: restaurant.products.filter((p: MenuItem) => p.categoryId === cat.id)
+      items: filteredMenu.products.filter((p: MenuItem) => p.categoryId === cat.id)
     };
   });
 
@@ -195,19 +207,23 @@ export default function App() {
         contact: restaurant.contact,
         statusText: restaurant.statusText
       },
-      categories: restaurant.categories,
-      products: restaurant.products,
-      offers: restaurant.products.filter((item) => item.badge === 'offer'),
+      categories: filteredMenu.categories,
+      menuGroups: restaurant.menuGroups || [],
+      products: filteredMenu.products,
+      offers: filteredMenu.products.filter((item) => item.badge === 'offer'),
       updatedAt: restaurant.updatedAt || null
     };
     return (
-      <iframe
-        title={`منيو ${restaurant.name}`}
-        className="block w-full min-h-screen border-0 bg-white"
-        sandbox="allow-scripts allow-forms allow-popups"
-        referrerPolicy="strict-origin-when-cross-origin"
-        srcDoc={buildStitchDocument(restaurant.stitchDesignCode, stitchData)}
-      />
+      <div>
+        <MenuGroupBar groups={restaurant.menuGroups} active={selectedGroup} onSelect={id => { setActiveMenuGroup(id); setActiveCategory('all'); }} primaryColor={primaryColor} lang={lang} />
+        <iframe
+          title={`منيو ${restaurant.name}`}
+          className="block w-full min-h-screen border-0 bg-white"
+          sandbox="allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
+          referrerPolicy="strict-origin-when-cross-origin"
+          srcDoc={buildStitchDocument(restaurant.stitchDesignCode, stitchData)}
+        />
+      </div>
     );
   }
 
@@ -286,9 +302,10 @@ export default function App() {
         </div>
       )}
 
+      <MenuGroupBar groups={restaurant.menuGroups} active={selectedGroup} onSelect={id => { setActiveMenuGroup(id); setActiveCategory('all'); }} primaryColor={primaryColor} lang={lang} />
       {/* Header with Dynamic Restaurant Name, Logo & Categories */}
       <Header
-        restaurant={restaurant}
+        restaurant={{ ...restaurant, categories: displayedCategories }}
         activeCategory={activeCategory}
         onSelectCategory={setActiveCategory}
         onOpenSearch={() => setIsSearchOpen(true)}
